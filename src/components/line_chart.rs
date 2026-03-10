@@ -91,7 +91,8 @@ pub fn MultiLineChart(
         .unwrap_or(0)
         .min(n_points.saturating_sub(1));
     let hover_idx = create_rw_signal(Some(default_idx));
-    let line_enabled: Vec<RwSignal<bool>> = (0..lines.len()).map(|_| create_rw_signal(true)).collect();
+    let line_enabled: Vec<RwSignal<bool>> =
+        (0..lines.len()).map(|_| create_rw_signal(true)).collect();
     let lines_for_series = lines.clone();
     let enabled_for_series = line_enabled.clone();
     let lines_for_scale = lines.clone();
@@ -176,18 +177,16 @@ pub fn MultiLineChart(
                     .collect::<Vec<_>>()
                     .join(" ");
 
-                Some(
-                    view! {
-                        <polyline
-                            fill="none"
-                            points={points}
-                            stroke={line.color}
-                            class="series-line"
-                            stroke-opacity={line.opacity}
-                            stroke-dasharray={if line.dashed { "8 6" } else { "none" }}
-                        />
-                    },
-                )
+                Some(view! {
+                    <polyline
+                        fill="none"
+                        points={points}
+                        stroke={line.color}
+                        class="series-line"
+                        stroke-opacity={line.opacity}
+                        stroke-dasharray={if line.dashed { "8 6" } else { "none" }}
+                    />
+                })
             })
             .collect_view()
     };

@@ -59,6 +59,26 @@ pub fn MortgageSummaryView(output: MortgagePortfolioOutput) -> impl IntoView {
                             .unwrap_or_else(|| "N/A".to_string())}
                     </strong>
                 </article>
+                <article class="mini-card">
+                    <span class="muted">"Recycled Debt (Ending)"</span>
+                    <strong>
+                        {output
+                            .debt_recycle
+                            .as_ref()
+                            .map(|d| fmt_money(d.summary.ending_recycled_debt_balance))
+                            .unwrap_or_else(|| "$0.00".to_string())}
+                    </strong>
+                </article>
+                <article class="mini-card">
+                    <span class="muted">"Recycle Draw Count"</span>
+                    <strong>
+                        {output
+                            .debt_recycle
+                            .as_ref()
+                            .map(|d| d.summary.draw_count.to_string())
+                            .unwrap_or_else(|| "0".to_string())}
+                    </strong>
+                </article>
             </div>
 
             <h3>"By Mortgage"</h3>

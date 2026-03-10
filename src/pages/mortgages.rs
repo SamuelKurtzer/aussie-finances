@@ -4,14 +4,17 @@ use crate::components::amortization_table::AmortizationTable;
 use crate::components::line_chart::{ChartLine, MultiLineChart};
 use crate::components::mortgage_summary::MortgageSummaryView;
 use crate::domain::mortgages::{
-    calculate_mortgage_portfolio, AmortizationRow, LoanPurpose, LoanRepaymentType, MortgageInput,
-    MortgagePortfolioInput, MortgageValidationError, RateType, RepaymentCadence, SplitInput,
+    calculate_mortgage_portfolio, AmortizationRow, DebtRecycleInput, LoanPurpose,
+    LoanRepaymentType, MortgageInput, MortgagePortfolioInput, MortgageValidationError, RateType,
+    RepaymentCadence, SplitInput,
 };
 
 #[cfg(target_arch = "wasm32")]
 const MORTGAGE_STORAGE_KEY: &str = "aus_fin_mortgage_calculator_v1";
 #[cfg(target_arch = "wasm32")]
 const INCOME_STORAGE_KEY: &str = "aus_fin_income_calculator_v1";
+#[cfg(target_arch = "wasm32")]
+const DEBT_RECYCLE_STORAGE_KEY: &str = "aus_fin_debt_recycle_v1";
 
 #[cfg(target_arch = "wasm32")]
 fn load_saved_portfolio() -> MortgagePortfolioInput {
@@ -71,6 +74,19 @@ fn load_income_context() -> Option<crate::domain::mortgages::IncomeContext> {
     None
 }
 
+#[cfg(target_arch = "wasm32")]
+fn load_saved_debt_recycle() -> Option<DebtRecycleInput> {
+    let window = web_sys::window()?;
+    let storage = window.local_storage().ok()??;
+    let raw = storage.get_item(DEBT_RECYCLE_STORAGE_KEY).ok()??;
+    serde_json::from_str::<DebtRecycleInput>(&raw).ok()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn load_saved_debt_recycle() -> Option<DebtRecycleInput> {
+    None
+}
+
 fn next_mortgage_id(input: &MortgagePortfolioInput) -> u32 {
     input.mortgages.iter().map(|m| m.id).max().unwrap_or(0) + 1
 }
@@ -94,7 +110,11 @@ fn build_monthly_payment_series(
         (0..=rows.len()).map(|i| i as f64).collect()
     };
 
-    let max_month = month_series.last().copied().unwrap_or(rows.len() as f64).ceil() as usize;
+    let max_month = month_series
+        .last()
+        .copied()
+        .unwrap_or(rows.len() as f64)
+        .ceil() as usize;
     let mut principal = vec![0.0_f64; max_month + 1];
     let mut interest = vec![0.0_f64; max_month + 1];
     let mut offset_top_up = vec![0.0_f64; max_month + 1];
@@ -142,7 +162,9 @@ pub fn MortgagesPage() -> impl IntoView {
     let income_context = create_memo(move |_| load_income_context());
     let result = create_memo(move |_| {
         let income = income_context.get();
-        calculate_mortgage_portfolio(&portfolio.get(), income.as_ref())
+        let mut input = portfolio.get();
+        input.debt_recycle = load_saved_debt_recycle();
+        calculate_mortgage_portfolio(&input, income.as_ref())
     });
 
     let add_mortgage = {

@@ -35,7 +35,11 @@ pub fn AmortizationTable(rows: Vec<AmortizationRow>, period_months: Vec<f64>) ->
         } else {
             (0..=rows.len()).map(|i| i as f64).collect()
         };
-        let max_month = month_series.last().copied().unwrap_or(rows.len() as f64).round() as usize;
+        let max_month = month_series
+            .last()
+            .copied()
+            .unwrap_or(rows.len() as f64)
+            .round() as usize;
         (1..=max_month)
             .map(|month| {
                 let idx = month_series
