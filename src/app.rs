@@ -4,6 +4,7 @@ use leptos_router::*;
 use crate::pages::debt_recycling::DebtRecyclingPage;
 use crate::pages::income::IncomePage;
 use crate::pages::mortgages::MortgagesPage;
+use crate::pages::spreadsheet::SpreadsheetPage;
 use crate::pages::tax::TaxPage;
 
 #[component]
@@ -12,10 +13,9 @@ pub fn App() -> impl IntoView {
         <Router>
             <main class="site">
                 <header class="hero">
-                    <span class="badge">"MVP"</span>
-                    <h1>"Aus Fin: Practical Money Tools for Australians"</h1>
+                    <h1>"aus-fin " <span class="badge">"v0.1"</span></h1>
                     <p class="muted">
-                        "Start with your take-home pay estimate, then expand into tax, mortgages, and debt recycling strategy."
+                        "Income tax, mortgage amortization, and debt recycling projections for Australians. All data stays in your browser."
                     </p>
                 </header>
                 <section class="workspace">
@@ -24,6 +24,7 @@ pub fn App() -> impl IntoView {
                         <A href="/tax">"Tax"</A>
                         <A href="/mortgages">"Mortgages"</A>
                         <A href="/debt-recycling">"Debt Recycling"</A>
+                        <A href="/spreadsheet">"Spreadsheet"</A>
                     </nav>
                     <div class="workspace-body">
                         <Routes>
@@ -32,6 +33,7 @@ pub fn App() -> impl IntoView {
                             <Route path="/tax" view=|| view! { <TaxPage /> } />
                             <Route path="/mortgages" view=|| view! { <MortgagesPage /> } />
                             <Route path="/debt-recycling" view=|| view! { <DebtRecyclingPage /> } />
+                            <Route path="/spreadsheet" view=|| view! { <SpreadsheetPage /> } />
                         </Routes>
                     </div>
                 </section>

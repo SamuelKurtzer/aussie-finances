@@ -1,6 +1,8 @@
 use leptos::*;
 use wasm_bindgen::JsCast;
 
+use crate::formatting::fmt_currency;
+
 #[derive(Clone)]
 pub struct ChartLine {
     pub name: String,
@@ -8,25 +10,6 @@ pub struct ChartLine {
     pub values: Vec<f64>,
     pub opacity: f64,
     pub dashed: bool,
-}
-
-fn fmt_with_commas(value: i64) -> String {
-    let sign = if value < 0 { "-" } else { "" };
-    let n = value.abs();
-    let s = n.to_string();
-    let mut out = String::new();
-    for (i, ch) in s.chars().rev().enumerate() {
-        if i > 0 && i % 3 == 0 {
-            out.push(',');
-        }
-        out.push(ch);
-    }
-    let grouped: String = out.chars().rev().collect();
-    format!("{sign}{grouped}")
-}
-
-fn fmt_currency(value: f64) -> String {
-    format!("${}", fmt_with_commas(value.round() as i64))
 }
 
 fn axis_step(value: f64) -> f64 {

@@ -4,112 +4,26 @@ use crate::components::line_chart::{ChartLine, MultiLineChart};
 use crate::domain::mortgages::{
     calculate_mortgage_portfolio, DebtRecycleInput, MortgagePortfolioInput, MortgageValidationError,
 };
-
-#[cfg(target_arch = "wasm32")]
-const MORTGAGE_STORAGE_KEY: &str = "aus_fin_mortgage_calculator_v1";
-#[cfg(target_arch = "wasm32")]
-const DEBT_RECYCLE_STORAGE_KEY: &str = "aus_fin_debt_recycle_v1";
-
-fn fmt_money(value: f64) -> String {
-    let sign = if value < 0.0 { "-" } else { "" };
-    let abs = value.abs();
-    let whole = abs.trunc() as i64;
-    let cents = ((abs - whole as f64) * 100.0).round() as i64;
-    format!("{sign}${}.{:02}", fmt_int_commas(whole), cents)
-}
-
-fn fmt_int_commas(n: i64) -> String {
-    let sign = if n < 0 { "-" } else { "" };
-    let s = n.abs().to_string();
-    let mut out = String::new();
-    for (i, ch) in s.chars().rev().enumerate() {
-        if i > 0 && i % 3 == 0 {
-            out.push(',');
-        }
-        out.push(ch);
-    }
-    let grouped: String = out.chars().rev().collect();
-    format!("{sign}{grouped}")
-}
-
-#[cfg(target_arch = "wasm32")]
-fn load_saved_portfolio() -> MortgagePortfolioInput {
-    if let Some(window) = web_sys::window() {
-        if let Ok(Some(storage)) = window.local_storage() {
-            if let Ok(Some(raw)) = storage.get_item(MORTGAGE_STORAGE_KEY) {
-                if let Ok(parsed) = serde_json::from_str::<MortgagePortfolioInput>(&raw) {
-                    return parsed;
-                }
-            }
-        }
-    }
-    MortgagePortfolioInput::default()
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn load_saved_portfolio() -> MortgagePortfolioInput {
-    MortgagePortfolioInput::default()
-}
-
-#[cfg(target_arch = "wasm32")]
-fn load_saved_strategy() -> DebtRecycleInput {
-    if let Some(window) = web_sys::window() {
-        if let Ok(Some(storage)) = window.local_storage() {
-            if let Ok(Some(raw)) = storage.get_item(DEBT_RECYCLE_STORAGE_KEY) {
-                if let Ok(parsed) = serde_json::from_str::<DebtRecycleInput>(&raw) {
-                    return parsed;
-                }
-            }
-        }
-    }
-    DebtRecycleInput::default()
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn load_saved_strategy() -> DebtRecycleInput {
-    DebtRecycleInput::default()
-}
-
-#[cfg(target_arch = "wasm32")]
-fn persist_strategy(input: &DebtRecycleInput) {
-    if let Some(window) = web_sys::window() {
-        if let Ok(Some(storage)) = window.local_storage() {
-            if let Ok(raw) = serde_json::to_string(input) {
-                let _ = storage.set_item(DEBT_RECYCLE_STORAGE_KEY, &raw);
-            }
-        }
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn persist_strategy(_input: &DebtRecycleInput) {}
-
-fn normalize_mortgage_selection(
-    strategy: &mut DebtRecycleInput,
-    portfolio: &MortgagePortfolioInput,
-) {
-    if portfolio
-        .mortgages
-        .iter()
-        .any(|m| m.id == strategy.mortgage_id)
-    {
-        return;
-    }
-    strategy.mortgage_id = portfolio.mortgages.first().map(|m| m.id).unwrap_or(0);
-}
+use crate::formatting::{chart_colors, fmt_int_commas, fmt_money};
+use crate::storage::{
+    load_from_storage, save_to_storage, DEBT_RECYCLE_STORAGE_KEY, MORTGAGE_STORAGE_KEY,
+};
 
 #[component]
 pub fn DebtRecyclingPage() -> impl IntoView {
-    let strategy = create_rw_signal(load_saved_strategy());
+    let strategy = create_rw_signal(
+        load_from_storage::<DebtRecycleInput>(DEBT_RECYCLE_STORAGE_KEY).unwrap_or_default(),
+    );
 
     create_effect(move |_| {
-        persist_strategy(&strategy.get());
+        save_to_storage(DEBT_RECYCLE_STORAGE_KEY, &strategy.get());
     });
 
     let result = create_memo(move |_| {
-        let mut portfolio = load_saved_portfolio();
+        let mut portfolio =
+            load_from_storage::<MortgagePortfolioInput>(MORTGAGE_STORAGE_KEY).unwrap_or_default();
         let mut recycle = strategy.get();
-        normalize_mortgage_selection(&mut recycle, &portfolio);
+        recycle.normalize_mortgage_selection(&portfolio);
         portfolio.debt_recycle = Some(recycle);
         calculate_mortgage_portfolio(&portfolio, None)
     });
@@ -118,7 +32,9 @@ pub fn DebtRecyclingPage() -> impl IntoView {
         <section>
             <h2>"Debt Recycling"</h2>
             <p class="muted">
-                "Run triggered offset sweeps into investment debt splits and project debt, offset, and portfolio outcomes."
+                "Each month, pay a fixed amount from your offset into the loan and redraw it to invest (non-split redraw). \
+                The loan becomes mixed-purpose: interest is apportioned pro-rata between deductible and non-deductible \
+                portions, and principal repayments erode the deductible share (contamination)."
             </p>
 
             <section class="field-group">
@@ -140,7 +56,9 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                     }
                 >
                     <For
-                        each=move || load_saved_portfolio().mortgages
+                        each=move || {
+                            load_from_storage::<MortgagePortfolioInput>(MORTGAGE_STORAGE_KEY).unwrap_or_default().mortgages
+                        }
                         key=|m| m.id
                         children=move |m| {
                             let id = m.id;
@@ -155,15 +73,15 @@ pub fn DebtRecyclingPage() -> impl IntoView {
 
                 <div class="three-col">
                     <div>
-                        <label>"Trigger offset target (AUD)"</label>
+                        <label>"Monthly redraw amount (AUD)"</label>
                         <input
                             type="number"
                             min="0"
                             step="1"
-                            prop:value=move || strategy.get().trigger_target_aud
+                            prop:value=move || strategy.get().monthly_redraw_aud
                             on:input=move |ev| {
                                 let value = event_target_value(&ev).parse::<f64>().unwrap_or(0.0).max(0.0);
-                                strategy.update(|s| s.trigger_target_aud = value);
+                                strategy.update(|s| s.monthly_redraw_aud = value);
                             }
                         />
                     </div>
@@ -271,7 +189,11 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                                 .iter()
                                 .map(|p| p.recycled_debt_balance)
                                 .collect::<Vec<_>>();
-                            let draw_amounts = dr.periods.iter().map(|p| p.draw_amount).collect::<Vec<_>>();
+                            let deductible_interest = dr
+                                .periods
+                                .iter()
+                                .map(|p| p.cumulative_deductible_interest)
+                                .collect::<Vec<_>>();
                             let offset_series = output.chart_series.offset_balance.clone();
 
                             view! {
@@ -279,11 +201,11 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                                     <h3>"Debt Recycle Summary"</h3>
                                     <div class="summary-grid">
                                         <article class="mini-card">
-                                            <span class="muted">"Total Drawn"</span>
+                                            <span class="muted">"Total Redrawn"</span>
                                             <strong>{fmt_money(dr.summary.total_drawn)}</strong>
                                         </article>
                                         <article class="mini-card">
-                                            <span class="muted">"Draw Count"</span>
+                                            <span class="muted">"Redraw Count"</span>
                                             <strong>{fmt_int_commas(dr.summary.draw_count as i64)}</strong>
                                         </article>
                                         <article class="mini-card">
@@ -302,6 +224,14 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                                             <span class="muted">"Total Franking Credits"</span>
                                             <strong>{fmt_money(dr.summary.total_franking_credits)}</strong>
                                         </article>
+                                        <article class="mini-card">
+                                            <span class="muted">"Deductible Interest (Total)"</span>
+                                            <strong>{fmt_money(dr.summary.total_deductible_interest)}</strong>
+                                        </article>
+                                        <article class="mini-card">
+                                            <span class="muted">"Contamination (Recycled Principal Repaid)"</span>
+                                            <strong>{fmt_money(dr.summary.recycled_principal_repaid)}</strong>
+                                        </article>
                                     </div>
 
                                     <MultiLineChart
@@ -310,29 +240,29 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                                         lines=vec![
                                             ChartLine {
                                                 name: "Offset Balance".to_string(),
-                                                color: "#4ade80",
+                                                color: chart_colors::DR_OFFSET,
                                                 values: offset_series,
                                                 opacity: 1.0,
                                                 dashed: false,
                                             },
                                             ChartLine {
                                                 name: "Investment Value".to_string(),
-                                                color: "#38bdf8",
+                                                color: chart_colors::DR_INVESTMENT,
                                                 values: investment_values,
                                                 opacity: 1.0,
                                                 dashed: false,
                                             },
                                             ChartLine {
-                                                name: "Recycled Debt Balance".to_string(),
-                                                color: "#fb7185",
+                                                name: "Recycled (Deductible) Debt".to_string(),
+                                                color: chart_colors::DR_RECYCLED_DEBT,
                                                 values: recycled_debt,
                                                 opacity: 1.0,
                                                 dashed: false,
                                             },
                                             ChartLine {
-                                                name: "Period Draw Amount".to_string(),
-                                                color: "#f59e0b",
-                                                values: draw_amounts,
+                                                name: "Cumulative Deductible Interest".to_string(),
+                                                color: chart_colors::DR_DEDUCTIBLE,
+                                                values: deductible_interest,
                                                 opacity: 0.9,
                                                 dashed: true,
                                             },
@@ -353,16 +283,17 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                                         }.into_view()
                                     }}
 
-                                    <h3>"Draw Events"</h3>
+                                    <h3>"Monthly Redraw Events"</h3>
                                     <div class="table-wrap">
                                         <table>
                                             <thead>
                                                 <tr>
                                                     <th>"Period"</th>
-                                                    <th>"Draw"</th>
-                                                    <th>"New Split"</th>
+                                                    <th>"Redraw"</th>
                                                     <th>"Offset Before"</th>
                                                     <th>"Offset After"</th>
+                                                    <th>"Recycled Debt"</th>
+                                                    <th>"Deductible Interest (Cum.)"</th>
                                                     <th>"Dividend"</th>
                                                     <th>"Franking"</th>
                                                     <th>"Investment"</th>
@@ -372,15 +303,16 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                                                 {dr
                                                     .periods
                                                     .iter()
-                                                    .filter(|p| p.draw_amount > 0.0)
+                                                    .filter(|p| p.redraw_amount > 0.0)
                                                     .map(|p| {
                                                         view! {
                                                             <tr>
                                                                 <td>{format!("P{}", fmt_int_commas(p.period_index as i64))}</td>
-                                                                <td>{fmt_money(p.draw_amount)}</td>
-                                                                <td>{p.new_split_id.map(|id| format!("#{id}")).unwrap_or_else(|| "-".to_string())}</td>
+                                                                <td>{fmt_money(p.redraw_amount)}</td>
                                                                 <td>{fmt_money(p.offset_before)}</td>
                                                                 <td>{fmt_money(p.offset_after)}</td>
+                                                                <td>{fmt_money(p.recycled_debt_balance)}</td>
+                                                                <td>{fmt_money(p.cumulative_deductible_interest)}</td>
                                                                 <td>{fmt_money(p.dividend_cash)}</td>
                                                                 <td>{fmt_money(p.franking_credit)}</td>
                                                                 <td>{fmt_money(p.investment_value)}</td>

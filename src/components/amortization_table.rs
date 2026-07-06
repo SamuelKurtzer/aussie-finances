@@ -1,56 +1,17 @@
 use leptos::*;
 
 use crate::domain::mortgages::AmortizationRow;
-
-fn fmt_money(value: f64) -> String {
-    let sign = if value < 0.0 { "-" } else { "" };
-    let abs = value.abs();
-    let whole = abs.trunc() as i64;
-    let cents = ((abs - whole as f64) * 100.0).round() as i64;
-    format!("{sign}${}.{:02}", fmt_int_commas(whole), cents)
-}
-
-fn fmt_int_commas(n: i64) -> String {
-    let sign = if n < 0 { "-" } else { "" };
-    let s = n.abs().to_string();
-    let mut out = String::new();
-    for (i, ch) in s.chars().rev().enumerate() {
-        if i > 0 && i % 3 == 0 {
-            out.push(',');
-        }
-        out.push(ch);
-    }
-    let grouped: String = out.chars().rev().collect();
-    format!("{sign}{grouped}")
-}
+use crate::domain::spreadsheet::map_periods_to_months;
+use crate::formatting::{fmt_int_commas, fmt_money};
 
 #[component]
 pub fn AmortizationTable(rows: Vec<AmortizationRow>, period_months: Vec<f64>) -> impl IntoView {
-    // Show monthly rows (M1..Mterm) even when repayment cadence is weekly/fortnightly.
-    let monthly_rows: Vec<(usize, AmortizationRow)> = if rows.is_empty() {
-        Vec::new()
-    } else {
-        let month_series = if period_months.len() == rows.len() + 1 {
-            period_months
-        } else {
-            (0..=rows.len()).map(|i| i as f64).collect()
-        };
-        let max_month = month_series
-            .last()
-            .copied()
-            .unwrap_or(rows.len() as f64)
-            .round() as usize;
-        (1..=max_month)
-            .map(|month| {
-                let idx = month_series
-                    .iter()
-                    .skip(1)
-                    .position(|m| *m >= month as f64)
-                    .unwrap_or(rows.len().saturating_sub(1));
-                (month, rows[idx].clone())
-            })
-            .collect()
-    };
+    let monthly_rows: Vec<(usize, AmortizationRow)> =
+        map_periods_to_months(&rows, &period_months)
+            .into_iter()
+            .enumerate()
+            .map(|(i, row)| (i + 1, row))
+            .collect();
 
     view! {
         <section>

@@ -72,6 +72,7 @@ name = "aus-fin"
 version = "0.1.0"
 dependencies = [
  "approx",
+ "js-sys",
  "leptos",
  "leptos_router",
  "serde",

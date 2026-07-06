@@ -1,15 +1,19 @@
 use serde::{Deserialize, Serialize};
 
-#[cfg(target_arch = "wasm32")]
 use crate::domain::calculator::calculate_income;
-#[cfg(target_arch = "wasm32")]
 use crate::domain::tax_rules::TaxRules;
-#[cfg(target_arch = "wasm32")]
-use crate::domain::types::CalculatorInput;
-use crate::domain::types::{PayFrequency, ValidationIssue};
+use crate::domain::types::{CalculatorInput, DomainError, PayFrequency, ValidationIssue};
 
-const MAX_MORTGAGES: usize = 10;
-const MAX_SPLITS_PER_MORTGAGE: usize = 10;
+pub const MAX_MORTGAGES: usize = 10;
+pub const MAX_SPLITS_PER_MORTGAGE: usize = 10;
+const BALANCE_EPSILON: f64 = 1e-6;
+
+pub type MortgageValidationError = DomainError;
+
+#[inline]
+fn balance_is_zero(value: f64) -> bool {
+    value.abs() <= BALANCE_EPSILON
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RepaymentCadence {
@@ -89,10 +93,11 @@ pub struct MortgagePortfolioInput {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct DebtRecycleInput {
     pub enabled: bool,
     pub mortgage_id: u32,
-    pub trigger_target_aud: f64,
+    pub monthly_redraw_aud: f64,
     pub emergency_buffer_aud: f64,
     pub growth_rate_percent: f64,
     pub dividend_yield_percent: f64,
@@ -106,7 +111,7 @@ impl Default for DebtRecycleInput {
         Self {
             enabled: false,
             mortgage_id: 1,
-            trigger_target_aud: 50_000.0,
+            monthly_redraw_aud: 2_000.0,
             emergency_buffer_aud: 20_000.0,
             growth_rate_percent: 6.0,
             dividend_yield_percent: 4.0,
@@ -120,14 +125,15 @@ impl Default for DebtRecycleInput {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DebtRecyclePeriod {
     pub period_index: usize,
-    pub draw_amount: f64,
-    pub new_split_id: Option<u32>,
+    pub redraw_amount: f64,
     pub investment_value: f64,
     pub dividend_cash: f64,
     pub franking_credit: f64,
     pub offset_before: f64,
     pub offset_after: f64,
     pub recycled_debt_balance: f64,
+    pub deductible_interest: f64,
+    pub cumulative_deductible_interest: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -138,6 +144,8 @@ pub struct DebtRecycleSummary {
     pub total_dividends: f64,
     pub total_franking_credits: f64,
     pub ending_recycled_debt_balance: f64,
+    pub total_deductible_interest: f64,
+    pub recycled_principal_repaid: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -145,6 +153,18 @@ pub struct DebtRecycleOutput {
     pub summary: DebtRecycleSummary,
     pub periods: Vec<DebtRecyclePeriod>,
     pub warnings: Vec<String>,
+}
+
+impl MortgagePortfolioInput {
+    pub fn next_mortgage_id(&self) -> u32 {
+        self.mortgages.iter().map(|m| m.id).max().unwrap_or(0) + 1
+    }
+}
+
+impl MortgageInput {
+    pub fn next_split_id(&self) -> u32 {
+        self.splits.iter().map(|s| s.id).max().unwrap_or(0) + 1
+    }
 }
 
 impl Default for SplitInput {
@@ -249,20 +269,16 @@ pub struct MortgagePortfolioOutput {
     pub warnings: Vec<String>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum MortgageValidationError {
-    Validation(Vec<ValidationIssue>),
-}
-
 #[derive(Clone)]
 struct WorkingSplit {
     balance: f64,
+    recycled_balance: f64,
     rate_per_period: f64,
+    rate_type: RateType,
     io_periods: usize,
     repayment_type: LoanRepaymentType,
     loan_purpose: LoanPurpose,
     fixed_repayment: f64,
-    is_recycled: bool,
 }
 
 #[derive(Clone)]
@@ -271,18 +287,16 @@ struct WorkingMortgage {
     term_periods: usize,
     offset_balance: f64,
     splits: Vec<WorkingSplit>,
-    next_split_id: u32,
 }
 
 #[derive(Clone, Copy)]
 struct ProjectionDebtRecycleConfig {
     mortgage_index: usize,
-    trigger_target: f64,
+    monthly_redraw: f64,
     emergency_buffer: f64,
     growth_rate_per_period: f64,
     dividend_rate_per_period: f64,
     franking_multiplier: f64,
-    rate_per_period: f64,
     starting_investment: f64,
 }
 
@@ -293,7 +307,10 @@ struct ProjectionDebtRecycleState {
     draw_count: usize,
     total_dividends: f64,
     total_franking_credits: f64,
+    total_deductible_interest: f64,
+    recycled_principal_repaid: f64,
     investment_value: f64,
+    capacity_exhausted_warned: bool,
     warnings: Vec<String>,
 }
 
@@ -309,10 +326,9 @@ struct ProjectionRun {
     debt_recycle: Option<DebtRecycleOutput>,
 }
 
-#[cfg(target_arch = "wasm32")]
 pub fn load_income_context_from_saved_input(raw: &str) -> Option<IncomeContext> {
     let parsed = serde_json::from_str::<CalculatorInput>(raw).ok()?;
-    let output = calculate_income(&parsed, &TaxRules::fy_2025_26_resident()).ok()?;
+    let output = calculate_income(&parsed, &TaxRules::for_year(parsed.financial_year)).ok()?;
     Some(IncomeContext {
         net_income_annual: output.net_income_annual,
         pay_frequency: parsed.pay_frequency,
@@ -384,23 +400,22 @@ pub fn calculate_mortgage_portfolio(
                 };
                 WorkingSplit {
                     balance: split.loan_amount,
+                    recycled_balance: 0.0,
                     rate_per_period,
+                    rate_type: split.rate_type,
                     io_periods,
                     repayment_type: split.repayment_type,
                     loan_purpose: split.loan_purpose,
                     fixed_repayment,
-                    is_recycled: false,
                 }
             })
             .collect::<Vec<_>>();
 
-        let next_split_id = mortgage.splits.iter().map(|s| s.id).max().unwrap_or(0) + 1;
         working.push(WorkingMortgage {
             id: mortgage.id,
             term_periods,
             offset_balance: mortgage.offset_balance,
             splits,
-            next_split_id,
         });
     }
 
@@ -523,23 +538,15 @@ fn build_projection_debt_recycle_config(
         return None;
     };
 
-    let selected_split = mortgage_input
-        .splits
-        .iter()
-        .find(|s| s.rate_type == RateType::Variable)
-        .or_else(|| mortgage_input.splits.first());
-
-    let Some(rate_source) = selected_split else {
-        warnings
-            .push("Debt recycle strategy skipped: selected mortgage has no splits.".to_string());
-        return None;
-    };
-
-    if rate_source.rate_type != RateType::Variable {
+    let has_eligible_split = mortgage_input.splits.iter().any(|s| {
+        s.rate_type == RateType::Variable && s.loan_purpose == LoanPurpose::OwnerOccupied
+    });
+    if !has_eligible_split {
         warnings.push(format!(
-            "Debt recycle strategy for {} could not find a variable split; using first split rate {:.2}%.",
-            mortgage_input.name, rate_source.annual_rate_percent
+            "Debt recycle strategy skipped: {} has no variable owner-occupied split to pay into and redraw from.",
+            mortgage_input.name
         ));
+        return None;
     }
 
     let periods_per_year = cadence.periods_per_year() as f64;
@@ -553,12 +560,11 @@ fn build_projection_debt_recycle_config(
 
     Some(ProjectionDebtRecycleConfig {
         mortgage_index,
-        trigger_target: debt_recycle.trigger_target_aud,
+        monthly_redraw: debt_recycle.monthly_redraw_aud,
         emergency_buffer: debt_recycle.emergency_buffer_aud,
         growth_rate_per_period,
         dividend_rate_per_period,
         franking_multiplier,
-        rate_per_period: rate_source.annual_rate_percent / 100.0 / periods_per_year,
         starting_investment: debt_recycle.starting_investment_aud.max(0.0),
     })
 }
@@ -587,9 +593,13 @@ fn run_projection(
         draw_count: 0,
         total_dividends: 0.0,
         total_franking_credits: 0.0,
+        total_deductible_interest: 0.0,
+        recycled_principal_repaid: 0.0,
         investment_value: config.starting_investment,
+        capacity_exhausted_warned: false,
         warnings: Vec::new(),
     });
+    let months_per_period = 12.0 / cadence.periods_per_year() as f64;
 
     period_months.push(0.0);
     balances.push(total_remaining_balance(&working));
@@ -602,91 +612,61 @@ fn run_projection(
             wm.offset_balance += offset_top_up_per_period;
         }
 
+        let mut recycle_snapshot = None;
         if let Some(state) = &mut debt_recycle_state {
-            let idx = state.config.mortgage_index;
-            if let Some(target_mortgage) = working.get_mut(idx) {
-                let dividend_cash =
-                    (state.investment_value * state.config.dividend_rate_per_period).max(0.0);
-                let franking_credit = (dividend_cash * state.config.franking_multiplier).max(0.0);
-                target_mortgage.offset_balance += dividend_cash + franking_credit;
+            let target_mortgage = &mut working[state.config.mortgage_index];
+            let dividend_cash =
+                (state.investment_value * state.config.dividend_rate_per_period).max(0.0);
+            let franking_credit = (dividend_cash * state.config.franking_multiplier).max(0.0);
+            target_mortgage.offset_balance += dividend_cash + franking_credit;
+            state.total_dividends += dividend_cash;
+            state.total_franking_credits += franking_credit;
 
-                let offset_before = target_mortgage.offset_balance;
-                let mut draw_amount = 0.0;
-                let mut new_split_id = None;
+            let offset_before = target_mortgage.offset_balance;
+            let mut redraw_amount = 0.0;
 
-                if target_mortgage.offset_balance >= state.config.trigger_target {
-                    draw_amount =
-                        (target_mortgage.offset_balance - state.config.emergency_buffer).max(0.0);
-                    if draw_amount > 0.0 {
-                        target_mortgage.offset_balance -= draw_amount;
-                        let shifted = shift_owner_occupied_debt(target_mortgage, draw_amount);
-                        if shifted <= 0.0 {
-                            continue;
-                        }
-                        let split_id = target_mortgage.next_split_id;
-                        target_mortgage.next_split_id =
-                            target_mortgage.next_split_id.saturating_add(1);
-                        target_mortgage.splits.push(WorkingSplit {
-                            balance: shifted,
-                            rate_per_period: state.config.rate_per_period,
-                            io_periods: usize::MAX,
-                            repayment_type: LoanRepaymentType::InterestOnlyThenPrincipalAndInterest,
-                            loan_purpose: LoanPurpose::Investment,
-                            fixed_repayment: 0.0,
-                            is_recycled: true,
-                        });
-                        state.investment_value += shifted;
-                        state.total_drawn += shifted;
-                        state.draw_count += 1;
-                        new_split_id = Some(split_id);
-                        if shifted < draw_amount {
-                            state.warnings.push(format!(
-                                "Period {period}: recycle draw capped at {} due to available owner-occupied debt.",
-                                shifted.round()
-                            ));
-                        }
-                        draw_amount = shifted;
-                    }
+            let is_new_month = (period as f64 * months_per_period).floor()
+                > ((period - 1) as f64 * months_per_period).floor();
+            if is_new_month {
+                let available_offset =
+                    (target_mortgage.offset_balance - state.config.emergency_buffer).max(0.0);
+                let capacity = redraw_capacity(target_mortgage);
+                let requested = state
+                    .config
+                    .monthly_redraw
+                    .min(available_offset)
+                    .min(capacity);
+                if requested > 0.0 && !balance_is_zero(requested) {
+                    redraw_amount = apply_non_split_redraw(target_mortgage, requested);
+                    target_mortgage.offset_balance -= redraw_amount;
+                    state.investment_value += redraw_amount;
+                    state.total_drawn += redraw_amount;
+                    state.draw_count += 1;
                 }
-
-                state.total_dividends += dividend_cash;
-                state.total_franking_credits += franking_credit;
-                state.investment_value *= 1.0 + state.config.growth_rate_per_period;
-                let offset_after = target_mortgage.offset_balance;
-                let recycled_debt_balance = recycled_debt_balance(&working);
-
-                state.periods.push(DebtRecyclePeriod {
-                    period_index: period,
-                    draw_amount,
-                    new_split_id,
-                    investment_value: state.investment_value,
-                    dividend_cash,
-                    franking_credit,
-                    offset_before,
-                    offset_after,
-                    recycled_debt_balance,
-                });
-            } else {
-                state.warnings.push(
-                    "Debt recycle strategy stopped because selected mortgage became unavailable."
-                        .to_string(),
-                );
-            }
-        }
-
-        for wm in &mut working {
-            if owner_occupied_non_recycled_balance(wm) <= 1e-9 {
-                for split in wm.splits.iter_mut().filter(|s| s.is_recycled) {
-                    // Once non-deductible debt is gone, recycled debt starts amortizing.
-                    split.io_periods = period.saturating_sub(1);
+                if balance_is_zero(capacity) && !state.capacity_exhausted_warned {
+                    state.capacity_exhausted_warned = true;
+                    state.warnings.push(format!(
+                        "Owner-occupied variable debt fully recycled by period {period}; no further redraws possible."
+                    ));
                 }
             }
+
+            let offset_after = target_mortgage.offset_balance;
+            recycle_snapshot = Some((
+                redraw_amount,
+                dividend_cash,
+                franking_credit,
+                offset_before,
+                offset_after,
+            ));
         }
 
         let opening_balance = total_remaining_balance(&working);
         let mut period_interest = 0.0;
         let mut period_principal = 0.0;
         let mut period_repayment = 0.0;
+        let mut period_deductible_interest = 0.0;
+        let mut period_recycled_principal = 0.0;
 
         for wm in &mut working {
             if period > wm.term_periods {
@@ -694,14 +674,14 @@ fn run_projection(
             }
 
             let total_split_balance = wm.splits.iter().map(|s| s.balance).sum::<f64>();
-            if total_split_balance <= 0.0 {
+            if balance_is_zero(total_split_balance) {
                 continue;
             }
 
             let effective_offset = wm.offset_balance.min(total_split_balance);
 
             for split in &mut wm.splits {
-                if split.balance <= 0.0 {
+                if balance_is_zero(split.balance) {
                     continue;
                 }
 
@@ -737,11 +717,47 @@ fn run_projection(
                 };
 
                 let principal = (repayment - interest).max(0.0).min(split.balance);
+
+                // ATO mixed-purpose loan treatment: interest and principal
+                // repayments apportion pro-rata across the deductible
+                // (recycled) and non-deductible portions of the loan.
+                if split.recycled_balance > 0.0 && split.balance > 0.0 {
+                    let recycled_share = (split.recycled_balance / split.balance).min(1.0);
+                    period_deductible_interest += interest * recycled_share;
+                    let recycled_principal = principal * recycled_share;
+                    split.recycled_balance =
+                        (split.recycled_balance - recycled_principal).max(0.0);
+                    period_recycled_principal += recycled_principal;
+                }
+
                 split.balance -= principal;
+                split.recycled_balance = split.recycled_balance.min(split.balance);
 
                 period_interest += interest;
                 period_principal += principal;
                 period_repayment += interest + principal;
+            }
+        }
+
+        if let Some(state) = &mut debt_recycle_state {
+            state.investment_value *= 1.0 + state.config.growth_rate_per_period;
+            state.total_deductible_interest += period_deductible_interest;
+            state.recycled_principal_repaid += period_recycled_principal;
+            if let Some((redraw_amount, dividend_cash, franking_credit, offset_before, offset_after)) =
+                recycle_snapshot
+            {
+                state.periods.push(DebtRecyclePeriod {
+                    period_index: period,
+                    redraw_amount,
+                    investment_value: state.investment_value,
+                    dividend_cash,
+                    franking_credit,
+                    offset_before,
+                    offset_after,
+                    recycled_debt_balance: recycled_debt_balance(&working),
+                    deductible_interest: period_deductible_interest,
+                    cumulative_deductible_interest: state.total_deductible_interest,
+                });
             }
         }
 
@@ -789,6 +805,8 @@ fn run_projection(
                 total_dividends: state.total_dividends,
                 total_franking_credits: state.total_franking_credits,
                 ending_recycled_debt_balance: recycled_debt_balance(&working),
+                total_deductible_interest: state.total_deductible_interest,
+                recycled_principal_repaid: state.recycled_principal_repaid,
             },
             periods: state.periods,
             warnings: state.warnings,
@@ -800,39 +818,46 @@ fn recycled_debt_balance(working: &[WorkingMortgage]) -> f64 {
     working
         .iter()
         .flat_map(|m| m.splits.iter())
-        .filter(|s| s.is_recycled)
-        .map(|s| s.balance)
+        .map(|s| s.recycled_balance)
         .sum()
 }
 
-fn shift_owner_occupied_debt(mortgage: &mut WorkingMortgage, requested: f64) -> f64 {
+fn split_is_redraw_eligible(split: &WorkingSplit) -> bool {
+    split.rate_type == RateType::Variable && split.loan_purpose == LoanPurpose::OwnerOccupied
+}
+
+fn redraw_capacity(mortgage: &WorkingMortgage) -> f64 {
+    mortgage
+        .splits
+        .iter()
+        .filter(|s| split_is_redraw_eligible(s))
+        .map(|s| (s.balance - s.recycled_balance).max(0.0))
+        .sum()
+}
+
+// Pay-in then redraw nets to zero on the loan balance; the redrawn portion
+// becomes deductible, tracked as recycled_balance within the same split.
+fn apply_non_split_redraw(mortgage: &mut WorkingMortgage, requested: f64) -> f64 {
     let mut remaining = requested.max(0.0);
-    if remaining <= 0.0 {
+    if balance_is_zero(remaining) {
         return 0.0;
     }
 
-    // Shift only owner-occupied debt (non-deductible debt recycling).
-    for split in mortgage.splits.iter_mut().filter(|s| {
-        !s.is_recycled && s.loan_purpose == LoanPurpose::OwnerOccupied && s.balance > 0.0
-    }) {
-        let taken = split.balance.min(remaining);
-        split.balance -= taken;
+    for split in mortgage
+        .splits
+        .iter_mut()
+        .filter(|s| split_is_redraw_eligible(s))
+    {
+        let capacity = (split.balance - split.recycled_balance).max(0.0);
+        let taken = capacity.min(remaining);
+        split.recycled_balance += taken;
         remaining -= taken;
-        if remaining <= 1e-9 {
+        if balance_is_zero(remaining) {
             break;
         }
     }
 
     requested.max(0.0) - remaining.max(0.0)
-}
-
-fn owner_occupied_non_recycled_balance(mortgage: &WorkingMortgage) -> f64 {
-    mortgage
-        .splits
-        .iter()
-        .filter(|s| !s.is_recycled && s.loan_purpose == LoanPurpose::OwnerOccupied)
-        .map(|s| s.balance)
-        .sum()
 }
 
 fn total_remaining_balance(working: &[WorkingMortgage]) -> f64 {
@@ -897,24 +922,17 @@ pub fn validate_portfolio_input(input: &MortgagePortfolioInput) -> Vec<Validatio
     }
 
     if let Some(debt_recycle) = input.debt_recycle.as_ref().filter(|d| d.enabled) {
-        if debt_recycle.trigger_target_aud < 0.0 {
+        if debt_recycle.monthly_redraw_aud <= 0.0 {
             issues.push(ValidationIssue {
-                field: "debt_recycle.trigger_target_aud",
-                message: "Debt recycle trigger target must be zero or greater.".to_string(),
+                field: "debt_recycle.monthly_redraw_aud",
+                message: "Debt recycle monthly redraw amount must be greater than zero."
+                    .to_string(),
             });
         }
         if debt_recycle.emergency_buffer_aud < 0.0 {
             issues.push(ValidationIssue {
                 field: "debt_recycle.emergency_buffer_aud",
                 message: "Debt recycle emergency buffer must be zero or greater.".to_string(),
-            });
-        }
-        if debt_recycle.trigger_target_aud < debt_recycle.emergency_buffer_aud {
-            issues.push(ValidationIssue {
-                field: "debt_recycle.trigger_target_aud",
-                message:
-                    "Debt recycle trigger target must be greater than or equal to emergency buffer."
-                        .to_string(),
             });
         }
         if debt_recycle.growth_rate_percent < 0.0 {
@@ -1055,6 +1073,75 @@ pub fn validate_portfolio_input(input: &MortgagePortfolioInput) -> Vec<Validatio
     issues
 }
 
+pub fn build_monthly_payment_series(
+    rows: &[AmortizationRow],
+    period_months: &[f64],
+    initial_offset_balance: f64,
+) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
+    if rows.is_empty() {
+        return (vec![0.0], vec![0.0], vec![0.0], vec![0.0]);
+    }
+
+    let month_series: Vec<f64> = if period_months.len() == rows.len() + 1 {
+        period_months.to_vec()
+    } else {
+        (0..=rows.len()).map(|i| i as f64).collect()
+    };
+
+    let max_month = month_series
+        .last()
+        .copied()
+        .unwrap_or(rows.len() as f64)
+        .ceil() as usize;
+    let mut principal = vec![0.0_f64; max_month + 1];
+    let mut interest = vec![0.0_f64; max_month + 1];
+    let mut offset_top_up = vec![0.0_f64; max_month + 1];
+
+    let mut previous_offset = initial_offset_balance.max(0.0);
+    for (i, row) in rows.iter().enumerate() {
+        let delta_offset = (row.offset_balance - previous_offset).max(0.0);
+        previous_offset = row.offset_balance;
+
+        let start = month_series.get(i).copied().unwrap_or(i as f64);
+        let end = month_series.get(i + 1).copied().unwrap_or((i + 1) as f64);
+        let duration = (end - start).max(1e-9);
+        let principal_rate = row.principal / duration;
+        let interest_rate = row.interest / duration;
+        let offset_rate = delta_offset / duration;
+
+        let first_month = start.floor().max(0.0) as usize + 1;
+        let last_month = end.ceil().max(0.0) as usize;
+
+        for month in first_month..=last_month.min(max_month) {
+            let left = (month - 1) as f64;
+            let right = month as f64;
+            let overlap = (end.min(right) - start.max(left)).max(0.0);
+            if overlap <= 0.0 {
+                continue;
+            }
+            principal[month] += principal_rate * overlap;
+            interest[month] += interest_rate * overlap;
+            offset_top_up[month] += offset_rate * overlap;
+        }
+    }
+
+    let months = (0..=max_month).map(|m| m as f64).collect::<Vec<_>>();
+    (months, principal, interest, offset_top_up)
+}
+
+impl DebtRecycleInput {
+    pub fn normalize_mortgage_selection(&mut self, portfolio: &MortgagePortfolioInput) {
+        if portfolio
+            .mortgages
+            .iter()
+            .any(|m| m.id == self.mortgage_id)
+        {
+            return;
+        }
+        self.mortgage_id = portfolio.mortgages.first().map(|m| m.id).unwrap_or(0);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
@@ -1159,103 +1246,40 @@ mod tests {
         assert_relative_eq!(first.principal, 0.0, epsilon = 0.01);
     }
 
-    #[test]
-    fn debt_recycle_creates_draw_splits() {
-        let mut input = base_input();
-        input.debt_recycle = Some(DebtRecycleInput {
+    fn recycle_input(mortgage_id: u32) -> DebtRecycleInput {
+        DebtRecycleInput {
             enabled: true,
-            mortgage_id: input.mortgages[0].id,
-            trigger_target_aud: 10_000.0,
+            mortgage_id,
+            monthly_redraw_aud: 2_000.0,
             emergency_buffer_aud: 5_000.0,
             growth_rate_percent: 0.0,
             dividend_yield_percent: 0.0,
             franking_percent: 100.0,
             company_tax_rate_percent: 30.0,
             starting_investment_aud: 0.0,
-        });
+        }
+    }
+
+    #[test]
+    fn monthly_redraw_draws_until_offset_hits_buffer() {
+        let mut input = base_input();
+        input.debt_recycle = Some(recycle_input(input.mortgages[0].id));
 
         let out = calculate_mortgage_portfolio(&input, None).unwrap();
         let recycle = out.debt_recycle.expect("expected debt recycle output");
-        assert!(recycle.summary.draw_count > 0);
-        assert_eq!(
-            recycle
-                .periods
-                .iter()
-                .filter(|p| p.new_split_id.is_some())
-                .count(),
-            recycle.summary.draw_count
-        );
+        // Offset 20k, buffer 5k: 7 full draws of 2k then one capped 1k draw.
+        assert_eq!(recycle.summary.draw_count, 8);
+        assert_relative_eq!(recycle.summary.total_drawn, 15_000.0, epsilon = 0.01);
+        assert!(recycle.summary.ending_investment_value >= 15_000.0 - 0.01);
     }
 
     #[test]
-    fn debt_recycle_dividends_and_franking_increase_offset() {
-        let mut input = base_input();
-        input.debt_recycle = Some(DebtRecycleInput {
-            enabled: true,
-            mortgage_id: input.mortgages[0].id,
-            trigger_target_aud: 1_000_000_000.0,
-            emergency_buffer_aud: 20_000.0,
-            growth_rate_percent: 0.0,
-            dividend_yield_percent: 12.0,
-            franking_percent: 100.0,
-            company_tax_rate_percent: 30.0,
-            starting_investment_aud: 100_000.0,
-        });
-
-        let out = calculate_mortgage_portfolio(&input, None).unwrap();
-        let offset_start = out
-            .chart_series
-            .offset_balance
-            .first()
-            .copied()
-            .unwrap_or(0.0);
-        let offset_next = out
-            .chart_series
-            .offset_balance
-            .get(1)
-            .copied()
-            .unwrap_or(0.0);
-        assert!(offset_next > offset_start);
-    }
-
-    #[test]
-    fn debt_recycle_validation_requires_target_at_least_buffer() {
-        let mut input = base_input();
-        input.debt_recycle = Some(DebtRecycleInput {
-            enabled: true,
-            mortgage_id: input.mortgages[0].id,
-            trigger_target_aud: 10_000.0,
-            emergency_buffer_aud: 20_000.0,
-            growth_rate_percent: 6.0,
-            dividend_yield_percent: 4.0,
-            franking_percent: 100.0,
-            company_tax_rate_percent: 30.0,
-            starting_investment_aud: 0.0,
-        });
-
-        let issues = validate_portfolio_input(&input);
-        assert!(issues
-            .iter()
-            .any(|i| i.field == "debt_recycle.trigger_target_aud"));
-    }
-
-    #[test]
-    fn debt_recycle_keeps_total_debt_neutral_on_shift() {
+    fn monthly_redraw_is_debt_neutral() {
         let mut input = base_input();
         input.mortgages[0].splits[0].repayment_type =
             LoanRepaymentType::InterestOnlyThenPrincipalAndInterest;
         input.mortgages[0].splits[0].interest_only_years = 29.0;
-        input.debt_recycle = Some(DebtRecycleInput {
-            enabled: true,
-            mortgage_id: input.mortgages[0].id,
-            trigger_target_aud: 10_000.0,
-            emergency_buffer_aud: 5_000.0,
-            growth_rate_percent: 0.0,
-            dividend_yield_percent: 0.0,
-            franking_percent: 100.0,
-            company_tax_rate_percent: 30.0,
-            starting_investment_aud: 0.0,
-        });
+        input.debt_recycle = Some(recycle_input(input.mortgages[0].id));
 
         let out = calculate_mortgage_portfolio(&input, None).unwrap();
         let first = out
@@ -1274,29 +1298,101 @@ mod tests {
     }
 
     #[test]
-    fn recycled_debt_switches_to_pi_after_owner_occupied_is_cleared() {
+    fn monthly_redraw_events_follow_month_boundaries() {
         let mut input = base_input();
-        input.mortgages[0].offset_balance = 600_000.0;
-        input.mortgages[0].splits[0].repayment_type =
-            LoanRepaymentType::InterestOnlyThenPrincipalAndInterest;
-        input.mortgages[0].splits[0].interest_only_years = 29.0;
-        input.debt_recycle = Some(DebtRecycleInput {
-            enabled: true,
-            mortgage_id: input.mortgages[0].id,
-            trigger_target_aud: 1_000.0,
-            emergency_buffer_aud: 0.0,
-            growth_rate_percent: 0.0,
-            dividend_yield_percent: 0.0,
-            franking_percent: 100.0,
-            company_tax_rate_percent: 30.0,
-            starting_investment_aud: 0.0,
-        });
+        input.repayment_cadence = RepaymentCadence::Fortnightly;
+        input.mortgages[0].term_months = 12;
+        let mut recycle = recycle_input(input.mortgages[0].id);
+        recycle.monthly_redraw_aud = 1_000.0;
+        recycle.emergency_buffer_aud = 0.0;
+        input.debt_recycle = Some(recycle);
 
         let out = calculate_mortgage_portfolio(&input, None).unwrap();
-        let first_row = out.amortization_rows.first().expect("first row expected");
+        let recycle = out.debt_recycle.expect("expected debt recycle output");
+        // 26 fortnights cover 12 month boundaries.
+        assert_eq!(recycle.summary.draw_count, 12);
+    }
+
+    #[test]
+    fn interest_is_apportioned_pro_rata() {
+        let mut input = base_input();
+        input.debt_recycle = Some(recycle_input(input.mortgages[0].id));
+
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        let recycle = out.debt_recycle.expect("expected debt recycle output");
+        assert!(recycle.summary.total_deductible_interest > 0.0);
         assert!(
-            first_row.principal > 0.0,
-            "recycled split should move to P&I once owner-occupied debt is cleared"
+            recycle.summary.total_deductible_interest
+                < out.portfolio_totals.projected_total_interest
         );
+        for period in &recycle.periods {
+            assert!(period.deductible_interest >= 0.0);
+        }
+    }
+
+    #[test]
+    fn principal_repayments_contaminate_recycled_balance() {
+        let mut input = base_input();
+        input.debt_recycle = Some(recycle_input(input.mortgages[0].id));
+
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        let recycle = out.debt_recycle.expect("expected debt recycle output");
+        assert!(recycle.summary.recycled_principal_repaid > 0.0);
+        assert!(
+            recycle.summary.ending_recycled_debt_balance
+                < recycle.summary.total_drawn - recycle.summary.recycled_principal_repaid + 0.01
+        );
+    }
+
+    #[test]
+    fn dividends_and_franking_increase_offset() {
+        let mut input = base_input();
+        let mut recycle = recycle_input(input.mortgages[0].id);
+        recycle.emergency_buffer_aud = 1_000_000_000.0;
+        recycle.dividend_yield_percent = 12.0;
+        recycle.starting_investment_aud = 100_000.0;
+        input.debt_recycle = Some(recycle);
+
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        let offset_start = out
+            .chart_series
+            .offset_balance
+            .first()
+            .copied()
+            .unwrap_or(0.0);
+        let offset_next = out
+            .chart_series
+            .offset_balance
+            .get(1)
+            .copied()
+            .unwrap_or(0.0);
+        assert!(offset_next > offset_start);
+    }
+
+    #[test]
+    fn validation_requires_positive_monthly_redraw() {
+        let mut input = base_input();
+        let mut recycle = recycle_input(input.mortgages[0].id);
+        recycle.monthly_redraw_aud = 0.0;
+        input.debt_recycle = Some(recycle);
+
+        let issues = validate_portfolio_input(&input);
+        assert!(issues
+            .iter()
+            .any(|i| i.field == "debt_recycle.monthly_redraw_aud"));
+    }
+
+    #[test]
+    fn strategy_skipped_without_variable_owner_occupied_split() {
+        let mut input = base_input();
+        input.mortgages[0].splits[0].rate_type = RateType::Fixed;
+        input.debt_recycle = Some(recycle_input(input.mortgages[0].id));
+
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        assert!(out.debt_recycle.is_none());
+        assert!(out
+            .warnings
+            .iter()
+            .any(|w| w.contains("no variable owner-occupied split")));
     }
 }

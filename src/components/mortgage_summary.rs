@@ -1,28 +1,7 @@
 use leptos::*;
 
 use crate::domain::mortgages::{MortgagePortfolioOutput, MortgageSummary};
-
-fn fmt_money(value: f64) -> String {
-    let sign = if value < 0.0 { "-" } else { "" };
-    let abs = value.abs();
-    let whole = abs.trunc() as i64;
-    let cents = ((abs - whole as f64) * 100.0).round() as i64;
-    format!("{sign}${}.{:02}", fmt_int_commas(whole), cents)
-}
-
-fn fmt_int_commas(n: i64) -> String {
-    let sign = if n < 0 { "-" } else { "" };
-    let s = n.abs().to_string();
-    let mut out = String::new();
-    for (i, ch) in s.chars().rev().enumerate() {
-        if i > 0 && i % 3 == 0 {
-            out.push(',');
-        }
-        out.push(ch);
-    }
-    let grouped: String = out.chars().rev().collect();
-    format!("{sign}{grouped}")
-}
+use crate::formatting::fmt_money;
 
 #[component]
 pub fn MortgageSummaryView(output: MortgagePortfolioOutput) -> impl IntoView {
@@ -70,7 +49,7 @@ pub fn MortgageSummaryView(output: MortgagePortfolioOutput) -> impl IntoView {
                     </strong>
                 </article>
                 <article class="mini-card">
-                    <span class="muted">"Recycle Draw Count"</span>
+                    <span class="muted">"Recycle Redraw Count"</span>
                     <strong>
                         {output
                             .debt_recycle

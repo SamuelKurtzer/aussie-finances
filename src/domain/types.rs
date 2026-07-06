@@ -35,30 +35,115 @@ impl fmt::Display for PayFrequency {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum FinancialYear {
+    Fy2024_25,
+    #[default]
+    Fy2025_26,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum IncomeUnit {
+    Hourly,
+    Daily,
+    Weekly,
+    Fortnightly,
+    Monthly,
+    #[default]
+    Annual,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum MedicareExemption {
+    #[default]
+    None,
+    Half,
+    Full,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum Residency {
+    #[default]
+    Resident,
+    NonResident,
+    WorkingHolidayMaker,
+}
+
+impl Residency {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Resident => "Australian Resident",
+            Self::NonResident => "Non-resident",
+            Self::WorkingHolidayMaker => "Working Holiday Maker",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct CalculatorInput {
-    pub gross_income_annual: f64,
+    #[serde(alias = "gross_income_annual")]
+    pub income_amount: f64,
+    pub income_unit: IncomeUnit,
+    pub hours_per_week: f64,
+    pub days_per_week: f64,
+    pub financial_year: FinancialYear,
     pub pay_frequency: PayFrequency,
+    pub residency: Residency,
+    pub bonus_annual: f64,
+    pub overtime_annual: f64,
     pub includes_super: bool,
     pub super_rate_percent: f64,
+    pub extra_super_annual: f64,
     pub has_help_debt: bool,
     pub deductions_annual: f64,
     pub salary_sacrifice_annual: f64,
+    pub medicare_exemption: MedicareExemption,
+    pub is_sapto_eligible: bool,
+    pub has_family: bool,
+    pub dependants: u32,
+    pub family_income_annual: Option<f64>,
     pub has_private_hospital_cover: bool,
     pub reportable_fringe_benefits_annual: f64,
     pub mls_income_for_surcharge_annual: Option<f64>,
 }
 
+impl CalculatorInput {
+    pub fn annual_salary(&self) -> f64 {
+        match self.income_unit {
+            IncomeUnit::Hourly => self.income_amount * self.hours_per_week * 52.0,
+            IncomeUnit::Daily => self.income_amount * self.days_per_week * 52.0,
+            IncomeUnit::Weekly => self.income_amount * 52.0,
+            IncomeUnit::Fortnightly => self.income_amount * 26.0,
+            IncomeUnit::Monthly => self.income_amount * 12.0,
+            IncomeUnit::Annual => self.income_amount,
+        }
+    }
+}
+
 impl Default for CalculatorInput {
     fn default() -> Self {
         Self {
-            gross_income_annual: 100_000.0,
+            income_amount: 100_000.0,
+            income_unit: IncomeUnit::Annual,
+            hours_per_week: 38.0,
+            days_per_week: 5.0,
+            financial_year: FinancialYear::Fy2025_26,
             pay_frequency: PayFrequency::Fortnightly,
+            residency: Residency::Resident,
+            bonus_annual: 0.0,
+            overtime_annual: 0.0,
             includes_super: false,
-            super_rate_percent: 11.5,
+            super_rate_percent: 12.0,
+            extra_super_annual: 0.0,
             has_help_debt: false,
             deductions_annual: 0.0,
             salary_sacrifice_annual: 0.0,
+            medicare_exemption: MedicareExemption::None,
+            is_sapto_eligible: false,
+            has_family: false,
+            dependants: 0,
+            family_income_annual: None,
             has_private_hospital_cover: false,
             reportable_fringe_benefits_annual: 0.0,
             mls_income_for_surcharge_annual: None,
@@ -67,11 +152,21 @@ impl Default for CalculatorInput {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct BracketLine {
+    pub lower_bound: f64,
+    pub upper_bound: Option<f64>,
+    pub rate: f64,
+    pub tax_amount: f64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct CalculatorOutput {
     pub gross_income_annual: f64,
     pub gross_income_period: f64,
     pub taxable_income_annual: f64,
     pub income_tax_annual: f64,
+    pub lito_annual: f64,
+    pub sapto_annual: f64,
     pub medicare_levy_annual: f64,
     pub medicare_levy_surcharge_annual: f64,
     pub help_repayment_annual: f64,
@@ -79,14 +174,22 @@ pub struct CalculatorOutput {
     pub net_income_annual: f64,
     pub net_income_period: f64,
     pub effective_tax_rate_percent: f64,
+    pub marginal_rate_percent: f64,
+    pub super_guarantee_annual: f64,
+    pub concessional_contributions_annual: f64,
+    pub division_293_annual: f64,
+    pub bracket_breakdown: Vec<BracketLine>,
     pub pay_frequency: PayFrequency,
+    pub warnings: Vec<String>,
     pub assumptions: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum CalculatorError {
+pub enum DomainError {
     Validation(Vec<ValidationIssue>),
 }
+
+pub type CalculatorError = DomainError;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ValidationIssue {
