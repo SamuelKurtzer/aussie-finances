@@ -6,8 +6,8 @@
     <title>Aus Fin</title>
     
 <script type="module">
-import init, * as bindings from '/aus-fin-fc752a79752fd325.js';
-const wasm = await init({ module_or_path: '/aus-fin-fc752a79752fd325_bg.wasm' });
+import init, * as bindings from '/aus-fin-567afa4696b74b90.js';
+const wasm = await init({ module_or_path: '/aus-fin-567afa4696b74b90_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -381,6 +381,52 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         width: 10px;
         height: 10px;
       }
+      .info-tip {
+        position: relative;
+        display: inline-block;
+        color: var(--muted);
+        cursor: help;
+        margin-left: 0.4rem;
+        font-size: 0.85em;
+        text-transform: none;
+        letter-spacing: normal;
+      }
+      .info-tip:hover,
+      .info-tip:focus {
+        color: var(--accent);
+        outline: none;
+      }
+      .info-tip-body {
+        display: none;
+        position: absolute;
+        left: 0;
+        bottom: 1.5em;
+        z-index: 10;
+        width: 320px;
+        max-width: 72vw;
+        background: var(--panel);
+        border: 1px solid var(--line-strong);
+        padding: 0.5rem 0.6rem;
+        color: var(--ink);
+        font-size: 0.95em;
+        font-weight: 400;
+        text-transform: none;
+        letter-spacing: normal;
+        white-space: normal;
+        line-height: 1.45;
+      }
+      .info-tip:hover .info-tip-body,
+      .info-tip:focus .info-tip-body {
+        display: block;
+      }
+      details.fine-print summary {
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin: 0.6rem 0 0.3rem;
+      }
       .pie-wrap {
         display: flex;
         gap: 1.2rem;
@@ -469,7 +515,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         }
       }
     </style>
-  <link rel="modulepreload" href="/aus-fin-fc752a79752fd325.js" crossorigin="anonymous" integrity="sha384-QwK8P4WG+ZA5oVTy3WDZcak9pqsoLQ69086zTg7bA4z7tJQ6/mAhIxnZBI3dH95V"><link rel="preload" href="/aus-fin-fc752a79752fd325_bg.wasm" crossorigin="anonymous" integrity="sha384-SZpKaVaRe/R4Gc0+bo9S0BYnDpM1WN0rslXMgmSX/sbo93mzYV3R2fmbOxQWpiDL" as="fetch" type="application/wasm"></head>
+  <link rel="modulepreload" href="/aus-fin-567afa4696b74b90.js" crossorigin="anonymous" integrity="sha384-ndNn2apA3AlhYYgOH0bvCMSwu6aaRCxL4c6mFbxACcRAZ0TlcmcepWd3rsxGOpZ4"><link rel="preload" href="/aus-fin-567afa4696b74b90_bg.wasm" crossorigin="anonymous" integrity="sha384-mmOP5XK1SzXMSoF1v5REyQ19dFj5jiYqgwOIjiRkf3F3DJxrVDJV/pif3GEArvNU" as="fetch" type="application/wasm"></head>
   <body><script>"use strict";
 
 (function () {

@@ -2,6 +2,7 @@ pub mod amortization_table;
 pub mod calculator_form;
 pub mod field_group;
 pub mod income_charts;
+pub mod info_tip;
 pub mod line_chart;
 pub mod mortgage_editor;
 pub mod mortgage_results;

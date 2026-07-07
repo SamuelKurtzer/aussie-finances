@@ -370,6 +370,52 @@
         width: 10px;
         height: 10px;
       }
+      .info-tip {
+        position: relative;
+        display: inline-block;
+        color: var(--muted);
+        cursor: help;
+        margin-left: 0.4rem;
+        font-size: 0.85em;
+        text-transform: none;
+        letter-spacing: normal;
+      }
+      .info-tip:hover,
+      .info-tip:focus {
+        color: var(--accent);
+        outline: none;
+      }
+      .info-tip-body {
+        display: none;
+        position: absolute;
+        left: 0;
+        bottom: 1.5em;
+        z-index: 10;
+        width: 320px;
+        max-width: 72vw;
+        background: var(--panel);
+        border: 1px solid var(--line-strong);
+        padding: 0.5rem 0.6rem;
+        color: var(--ink);
+        font-size: 0.95em;
+        font-weight: 400;
+        text-transform: none;
+        letter-spacing: normal;
+        white-space: normal;
+        line-height: 1.45;
+      }
+      .info-tip:hover .info-tip-body,
+      .info-tip:focus .info-tip-body {
+        display: block;
+      }
+      details.fine-print summary {
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin: 0.6rem 0 0.3rem;
+      }
       .pie-wrap {
         display: flex;
         gap: 1.2rem;

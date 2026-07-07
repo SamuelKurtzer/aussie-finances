@@ -1,6 +1,7 @@
 use leptos::*;
 
 use crate::components::field_group::FieldGroup;
+use crate::components::info_tip::InfoTip;
 use crate::domain::types::{
     CalculatorInput, FinancialYear, IncomeUnit, MedicareExemption, PayFrequency, Residency,
 };
@@ -130,7 +131,10 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     on:input=move |ev| update_number("overtime_annual", event_target_value(&ev))
                 />
 
-                <label for="pay-frequency">"Pay frequency (display)"</label>
+                <label for="pay-frequency">
+                    "Pay frequency (display)"
+                    <InfoTip text="Only changes how results are displayed per pay period. It does not affect the calculation." />
+                </label>
                 <select
                     id="pay-frequency"
                     on:change=move |ev| {
@@ -151,7 +155,10 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     <option value="annually" selected=move || input.get().pay_frequency == PayFrequency::Annually>"Annually"</option>
                 </select>
 
-                <label for="residency">"Residency status"</label>
+                <label for="residency">
+                    "Residency status"
+                    <InfoTip text="Residency for tax purposes, which can differ from visa status. Non-residents pay no Medicare levy but get no tax-free threshold; Medicare and offset options are hidden for them." />
+                </label>
                 <select
                     id="residency"
                     on:change=move |ev| {
@@ -179,9 +186,13 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                         on:change=move |ev| input.update(|s| s.includes_super = event_target_checked(&ev))
                     />
                     <span>"Salary figure includes super"</span>
+                    <InfoTip text="Tick if the salary you entered is a package that already includes employer super. It will be converted to a super-exclusive base." />
                 </label>
 
-                <label for="super-rate">"Super rate (%)"</label>
+                <label for="super-rate">
+                    "Super rate (%)"
+                    <InfoTip text="The superannuation guarantee rate your employer pays. The legal minimum is 12% from 1 July 2025 (11.5% in 2024-25)." />
+                </label>
                 <input
                     id="super-rate"
                     type="number"
@@ -192,7 +203,10 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     on:input=move |ev| update_number("super_rate_percent", event_target_value(&ev))
                 />
 
-                <label for="extra-super">"Extra super (concessional, annual, AUD)"</label>
+                <label for="extra-super">
+                    "Extra super (concessional, annual, AUD)"
+                    <InfoTip text="Personal before-tax contributions on top of employer super. They reduce taxable income and count toward the $30,000 concessional cap." />
+                </label>
                 <input
                     id="extra-super"
                     type="number"
@@ -208,11 +222,15 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                         on:change=move |ev| input.update(|s| s.has_help_debt = event_target_checked(&ev))
                     />
                     <span>"Has study loan (HELP, VET, SSL, TSL, SFSS)"</span>
+                    <InfoTip text="Compulsory repayments are withheld once your repayment income passes the year's threshold. All study loan types use the same repayment rates." />
                 </label>
             </FieldGroup>
 
             <FieldGroup label="Tax Adjustments" help="Enter annual deductions and salary sacrifice amounts.">
-                <label for="deductions">"Deductions (annual, AUD)"</label>
+                <label for="deductions">
+                    "Deductions (annual, AUD)"
+                    <InfoTip text="Work-related expenses and other allowable deductions. They reduce your taxable income, not your tax directly." />
+                </label>
                 <input
                     id="deductions"
                     type="number"
@@ -221,7 +239,10 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     on:input=move |ev| update_number("deductions_annual", event_target_value(&ev))
                 />
 
-                <label for="sacrifice">"Salary sacrifice (annual, AUD)"</label>
+                <label for="sacrifice">
+                    "Salary sacrifice (annual, AUD)"
+                    <InfoTip text="Pre-tax salary directed into super. Reduces taxable income and take-home pay; counts toward the concessional cap." />
+                </label>
                 <input
                     id="sacrifice"
                     type="number"
@@ -231,8 +252,12 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                 />
             </FieldGroup>
 
+            {move || (input.get().residency == Residency::Resident).then(|| view! {
             <FieldGroup label="Medicare, Family, and Offsets" help="Exemptions, family thresholds, seniors offset, private cover, and fringe benefits.">
-                <label for="medicare-exemption">"Medicare exemption"</label>
+                <label for="medicare-exemption">
+                    "Medicare exemption"
+                    <InfoTip text="Full or half levy exemption for certain groups, e.g. some foreign residents, defence force members, or blindness/sight pension recipients. Most people have no exemption." />
+                </label>
                 <select
                     id="medicare-exemption"
                     on:change=move |ev| {
@@ -258,6 +283,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                         on:change=move |ev| input.update(|s| s.is_sapto_eligible = event_target_checked(&ev))
                     />
                     <span>"Senior or pensioner (SAPTO)"</span>
+                    <InfoTip text="Seniors and Pensioners Tax Offset: reduces income tax by up to $2,230 if you are Age Pension age and under the income limit." />
                 </label>
 
                 <label class="check-row">
@@ -267,6 +293,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                         on:change=move |ev| input.update(|s| s.has_family = event_target_checked(&ev))
                     />
                     <span>"Family (spouse or dependants)"</span>
+                    <InfoTip text="Having a spouse or dependent children raises the Medicare levy low-income threshold and switches the surcharge to family income tiers." />
                 </label>
 
                 {move || (input.get().has_family || input.get().dependants > 0).then(|| view! {
@@ -297,9 +324,13 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                         on:change=move |ev| input.update(|s| s.has_private_hospital_cover = event_target_checked(&ev))
                     />
                     <span>"Has private hospital cover"</span>
+                    <InfoTip text="An appropriate level of private hospital cover (not extras-only) exempts you from the Medicare Levy Surcharge." />
                 </label>
 
-                <label for="rfb">"Reportable fringe benefits (annual, AUD)"</label>
+                <label for="rfb">
+                    "Reportable fringe benefits (annual, AUD)"
+                    <InfoTip text="The grossed-up value of fringe benefits shown on your payment summary. Counts toward surcharge income but is not taxed as salary." />
+                </label>
                 <input
                     id="rfb"
                     type="number"
@@ -308,7 +339,10 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     on:input=move |ev| update_number("reportable_fringe_benefits_annual", event_target_value(&ev))
                 />
 
-                <label for="mls-override">"MLS income override (annual, AUD, optional)"</label>
+                <label for="mls-override">
+                    "MLS income override (annual, AUD, optional)"
+                    <InfoTip text="Income for surcharge purposes includes taxable income, fringe benefits, super contributions, and investment losses. Set it here directly if the default estimate is off." />
+                </label>
                 <input
                     id="mls-override"
                     type="number"
@@ -320,6 +354,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     on:input=move |ev| update_number("mls_income_for_surcharge_annual", event_target_value(&ev))
                 />
             </FieldGroup>
+            })}
         </div>
     }
 }
