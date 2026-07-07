@@ -51,8 +51,10 @@ pub fn BudgetPage() -> impl IntoView {
 
             <section class="field-group">
                 <h3>"Ongoing Expenses"</h3>
-                {move || {
-                    (!budget.get().items.is_empty()).then(|| view! {
+                {
+                    // Memo so typing in a row doesn't rebuild the table and steal focus.
+                    let has_items = create_memo(move |_| !budget.get().items.is_empty());
+                    move || has_items.get().then(|| view! {
                         <div class="table-wrap">
                             <table class="budget-table">
                                 <thead>
@@ -168,7 +170,7 @@ pub fn BudgetPage() -> impl IntoView {
                             </table>
                         </div>
                     })
-                }}
+                }
                 <button type="button" on:click=add_item>"+ Add Expense"</button>
             </section>
 
