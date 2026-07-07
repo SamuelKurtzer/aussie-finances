@@ -82,22 +82,24 @@
         border-bottom: 1px solid var(--line);
         background: var(--panel);
       }
-      .tabs a {
+      .tabs button {
         text-decoration: none;
         color: var(--muted);
         border: 0;
         border-right: 1px solid var(--line);
+        border-radius: 0;
         padding: 0.5rem 0.9rem;
         background: transparent;
         text-transform: uppercase;
         font-size: 0.78rem;
+        font-weight: 400;
         letter-spacing: 0.06em;
       }
-      .tabs a:hover {
+      .tabs button:hover {
         color: var(--ink);
         background: #1c1c17;
       }
-      .tabs a[aria-current="page"] {
+      .tabs button[aria-current="page"] {
         background: var(--accent);
         color: var(--accent-ink);
         font-weight: 700;
