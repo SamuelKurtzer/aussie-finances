@@ -1,10 +1,11 @@
 use leptos::*;
 
 use crate::components::calculator_form::CalculatorForm;
+use crate::components::income_charts::{RateCurveChart, RatePoint, TaxPieChart};
 use crate::components::results_table::ResultsTable;
 use crate::domain::calculator::calculate_income;
 use crate::domain::tax_rules::TaxRules;
-use crate::domain::types::{CalculatorError, CalculatorInput};
+use crate::domain::types::{CalculatorError, CalculatorInput, IncomeUnit};
 use crate::storage::{load_from_storage, save_to_storage, INCOME_STORAGE_KEY};
 
 #[component]
@@ -22,6 +23,32 @@ pub fn IncomePage() -> impl IntoView {
         let current = input.get();
         let rules = TaxRules::for_year(current.financial_year);
         calculate_income(&current, &rules)
+    });
+
+    let rate_curve = create_memo(move |_| {
+        let current = input.get();
+        let rules = TaxRules::for_year(current.financial_year);
+        let base_gross = match calculate_income(&current, &rules) {
+            Ok(out) => out.gross_income_annual,
+            Err(_) => return Vec::new(),
+        };
+        let x_max = (base_gross * 2.0).max(200_000.0);
+        let steps = 120;
+        let mut sweep = current.clone();
+        sweep.income_unit = IncomeUnit::Annual;
+        sweep.includes_super = false;
+        sweep.bonus_annual = 0.0;
+        sweep.overtime_annual = 0.0;
+        (0..=steps)
+            .filter_map(|i| {
+                sweep.income_amount = x_max * i as f64 / steps as f64;
+                calculate_income(&sweep, &rules).ok().map(|out| RatePoint {
+                    gross: out.gross_income_annual,
+                    effective: out.effective_tax_rate_percent,
+                    marginal: out.marginal_rate_percent,
+                })
+            })
+            .collect::<Vec<_>>()
     });
 
     view! {
@@ -58,5 +85,27 @@ pub fn IncomePage() -> impl IntoView {
                 }}
             </div>
         </section>
+
+        {move || {
+            computed.get().ok().map(|result| {
+                let points = rate_curve.get();
+                let current_gross = result.gross_income_annual;
+                let current_effective = result.effective_tax_rate_percent;
+                let current_marginal = result.marginal_rate_percent;
+                view! {
+                    <section class="panel">
+                        <TaxPieChart result=result.clone() />
+                        {(points.len() >= 2).then(|| view! {
+                            <RateCurveChart
+                                points=points.clone()
+                                current_gross=current_gross
+                                current_effective=current_effective
+                                current_marginal=current_marginal
+                            />
+                        })}
+                    </section>
+                }
+            })
+        }}
     }
 }
