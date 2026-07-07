@@ -6,8 +6,8 @@
     <title>Aus Fin</title>
     
 <script type="module">
-import init, * as bindings from '/aus-fin-19854daba6e99684.js';
-const wasm = await init({ module_or_path: '/aus-fin-19854daba6e99684_bg.wasm' });
+import init, * as bindings from '/aus-fin-7d3a64995fe036bc.js';
+const wasm = await init({ module_or_path: '/aus-fin-7d3a64995fe036bc_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -456,6 +456,10 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         min-width: 300px;
         flex: 1;
       }
+      .pie-note {
+        font-size: 0.78rem;
+        margin: 0.6rem 0 0;
+      }
       .hover-guide {
         stroke: var(--muted);
         stroke-width: 1;
@@ -524,7 +528,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         }
       }
     </style>
-  <link rel="modulepreload" href="/aus-fin-19854daba6e99684.js" crossorigin="anonymous" integrity="sha384-hvr9p+RPFBa+gICIj5wIEyM9o1MXJW6NkJypRyGtTiSSB8jnGs13dQnAZteev7XO"><link rel="preload" href="/aus-fin-19854daba6e99684_bg.wasm" crossorigin="anonymous" integrity="sha384-05RD3iiC2k96cseZftgduL0dXBszy5hCcYLGQoSyroVNxDPbMoj4TfNkgReCTldw" as="fetch" type="application/wasm"></head>
+  <link rel="modulepreload" href="/aus-fin-7d3a64995fe036bc.js" crossorigin="anonymous" integrity="sha384-hvr9p+RPFBa+gICIj5wIEyM9o1MXJW6NkJypRyGtTiSSB8jnGs13dQnAZteev7XO"><link rel="preload" href="/aus-fin-7d3a64995fe036bc_bg.wasm" crossorigin="anonymous" integrity="sha384-EpKvsSf8K9CVKmYUMnC3VD77t/hRPZwSNHlvMwlpcArDw//wFdSK6B+X+sCTrhFR" as="fetch" type="application/wasm"></head>
   <body><script>"use strict";
 
 (function () {

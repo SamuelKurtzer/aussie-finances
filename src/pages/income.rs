@@ -4,9 +4,43 @@ use crate::components::calculator_form::CalculatorForm;
 use crate::components::income_charts::{RateCurveChart, RatePoint, TaxPieChart};
 use crate::components::results_table::ResultsTable;
 use crate::domain::calculator::calculate_income;
+use crate::domain::mortgages::{
+    calculate_mortgage_portfolio, first_year_repayments, load_income_context_from_saved_input,
+    DebtRecycleInput, MortgagePortfolioInput,
+};
 use crate::domain::tax_rules::TaxRules;
 use crate::domain::types::{CalculatorError, CalculatorInput, IncomeUnit};
-use crate::storage::{load_from_storage, save_to_storage, INCOME_STORAGE_KEY};
+use crate::storage::{
+    load_from_storage, load_raw_from_storage, save_to_storage, DEBT_RECYCLE_STORAGE_KEY,
+    INCOME_STORAGE_KEY, MORTGAGE_STORAGE_KEY,
+};
+
+fn load_household_outgoings() -> (f64, f64) {
+    let Some(raw) = load_raw_from_storage(MORTGAGE_STORAGE_KEY) else {
+        return (0.0, 0.0);
+    };
+    let Ok(mut portfolio) = serde_json::from_str::<MortgagePortfolioInput>(&raw) else {
+        return (0.0, 0.0);
+    };
+    portfolio.debt_recycle = load_from_storage::<DebtRecycleInput>(DEBT_RECYCLE_STORAGE_KEY);
+
+    let dr_annual = portfolio
+        .debt_recycle
+        .as_ref()
+        .filter(|dr| dr.enabled)
+        .map(|dr| dr.monthly_redraw_aud * 12.0)
+        .unwrap_or(0.0);
+
+    let income_ctx = load_raw_from_storage(INCOME_STORAGE_KEY)
+        .as_deref()
+        .and_then(load_income_context_from_saved_input);
+    let mortgage_annual = calculate_mortgage_portfolio(&portfolio, income_ctx.as_ref())
+        .ok()
+        .map(|out| first_year_repayments(&out.amortization_rows, &out.chart_series.period_months))
+        .unwrap_or(0.0);
+
+    (mortgage_annual, dr_annual)
+}
 
 #[component]
 pub fn IncomePage() -> impl IntoView {
@@ -90,8 +124,13 @@ pub fn IncomePage() -> impl IntoView {
                         let current_gross = result.gross_income_annual;
                         let current_effective = result.effective_tax_rate_percent;
                         let current_marginal = result.marginal_rate_percent;
+                        let (mortgage_annual, debt_recycling_annual) = load_household_outgoings();
                         view! {
-                            <TaxPieChart result=result />
+                            <TaxPieChart
+                                result=result
+                                mortgage_annual=mortgage_annual
+                                debt_recycling_annual=debt_recycling_annual
+                            />
                             {(points.len() >= 2).then(|| view! {
                                 <RateCurveChart
                                     points=points.clone()

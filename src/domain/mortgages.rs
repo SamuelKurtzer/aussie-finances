@@ -1129,6 +1129,26 @@ pub fn build_monthly_payment_series(
     (months, principal, interest, offset_top_up)
 }
 
+pub fn first_year_repayments(rows: &[AmortizationRow], period_months: &[f64]) -> f64 {
+    let aligned = period_months.len() == rows.len() + 1;
+    rows.iter()
+        .enumerate()
+        .map(|(i, row)| {
+            let (start, end) = if aligned {
+                (period_months[i], period_months[i + 1])
+            } else {
+                (i as f64, (i + 1) as f64)
+            };
+            if start >= 12.0 {
+                return 0.0;
+            }
+            let duration = (end - start).max(1e-9);
+            let overlap = (end.min(12.0) - start).max(0.0);
+            row.repayment * (overlap / duration)
+        })
+        .sum()
+}
+
 impl DebtRecycleInput {
     pub fn normalize_mortgage_selection(&mut self, portfolio: &MortgagePortfolioInput) {
         if portfolio
@@ -1170,6 +1190,17 @@ mod tests {
             .copied()
             .unwrap_or_default();
         assert!(last < first);
+    }
+
+    #[test]
+    fn first_year_repayments_annualises_first_twelve_months() {
+        let input = base_input();
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        let annual =
+            first_year_repayments(&out.amortization_rows, &out.chart_series.period_months);
+        let per_period = out.amortization_rows[0].repayment;
+        let periods_per_year = input.repayment_cadence.periods_per_year() as f64;
+        assert_relative_eq!(annual, per_period * periods_per_year, max_relative = 0.01);
     }
 
     #[test]

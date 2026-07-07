@@ -12,19 +12,40 @@ struct Slice {
 }
 
 #[component]
-pub fn TaxPieChart(result: CalculatorOutput) -> impl IntoView {
+pub fn TaxPieChart(
+    result: CalculatorOutput,
+    #[prop(default = 0.0)] mortgage_annual: f64,
+    #[prop(default = 0.0)] debt_recycling_annual: f64,
+) -> impl IntoView {
     let gross = result.gross_income_annual;
     let income_tax_net =
         (result.income_tax_annual - result.lito_annual - result.sapto_annual).max(0.0);
     let medicare = result.medicare_levy_annual + result.medicare_levy_surcharge_annual;
     let sacrificed =
         (gross - result.net_income_annual - result.total_withheld_annual).max(0.0);
+    let has_outgoings = mortgage_annual > 0.005 || debt_recycling_annual > 0.005;
+    let remaining_net =
+        (result.net_income_annual - mortgage_annual - debt_recycling_annual).max(0.0);
 
     let slices: Vec<Slice> = [
         Slice {
-            name: "Net income",
+            name: if has_outgoings {
+                "Net income (remaining)"
+            } else {
+                "Net income"
+            },
             color: "#98c379",
-            value: result.net_income_annual,
+            value: remaining_net,
+        },
+        Slice {
+            name: "Mortgage repayments",
+            color: "#ffb000",
+            value: mortgage_annual,
+        },
+        Slice {
+            name: "Debt recycling",
+            color: "#56b6c2",
+            value: debt_recycling_annual,
         },
         Slice {
             name: "Income tax",
@@ -114,6 +135,11 @@ pub fn TaxPieChart(result: CalculatorOutput) -> impl IntoView {
                         <strong>{fmt_money(gross)}</strong>
                     </div>
                     {legend}
+                    {has_outgoings.then(|| view! {
+                        <p class="muted pie-note">
+                            "Mortgage repayments are the first-year total from the Mortgages tab; debt recycling is the monthly redraw from the Debt Recycling tab."
+                        </p>
+                    })}
                 </div>
             </div>
         </section>
