@@ -3,7 +3,8 @@ use leptos::*;
 use crate::components::field_group::FieldGroup;
 use crate::components::info_tip::InfoTip;
 use crate::domain::types::{
-    CalculatorInput, FinancialYear, IncomeUnit, MedicareExemption, PayFrequency, Residency,
+    CalculatorInput, ContributionFrequency, FinancialYear, IncomeUnit, MedicareExemption,
+    PayFrequency, Residency,
 };
 
 #[component]
@@ -18,7 +19,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
             "overtime_annual" => state.overtime_annual = parsed,
             "super_rate_percent" => state.super_rate_percent = parsed,
             "deductions_annual" => state.deductions_annual = parsed,
-            "salary_sacrifice_annual" => state.salary_sacrifice_annual = parsed,
+            "salary_sacrifice_amount" => state.salary_sacrifice_amount = parsed,
             "extra_super_annual" => state.extra_super_annual = parsed,
             "reportable_fringe_benefits_annual" => state.reportable_fringe_benefits_annual = parsed,
             "dependants" => state.dependants = parsed.max(0.0) as u32,
@@ -58,6 +59,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     id="income-amount"
                     type="number"
                     min="0"
+                    step="0.01"
                     prop:value=move || input.get().income_amount
                     on:input=move |ev| update_number("income_amount", event_target_value(&ev))
                 />
@@ -118,6 +120,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     id="bonus"
                     type="number"
                     min="0"
+                    step="0.01"
                     prop:value=move || input.get().bonus_annual
                     on:input=move |ev| update_number("bonus_annual", event_target_value(&ev))
                 />
@@ -127,6 +130,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     id="overtime"
                     type="number"
                     min="0"
+                    step="0.01"
                     prop:value=move || input.get().overtime_annual
                     on:input=move |ev| update_number("overtime_annual", event_target_value(&ev))
                 />
@@ -203,17 +207,30 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     on:input=move |ev| update_number("super_rate_percent", event_target_value(&ev))
                 />
 
-                <label for="extra-super">
-                    "Extra super (concessional, annual, AUD)"
-                    <InfoTip text="Personal before-tax contributions on top of employer super. They reduce taxable income and count toward the $30,000 concessional cap." />
+                <label class="check-row">
+                    <input
+                        type="checkbox"
+                        prop:checked=move || input.get().maximize_super
+                        on:change=move |ev| input.update(|s| s.maximize_super = event_target_checked(&ev))
+                    />
+                    <span>"Max out concessional super cap"</span>
+                    <InfoTip text="Automatically tops up extra before-tax super so employer super plus salary sacrifice plus extra contributions reach the $30,000 concessional cap." />
                 </label>
-                <input
-                    id="extra-super"
-                    type="number"
-                    min="0"
-                    prop:value=move || input.get().extra_super_annual
-                    on:input=move |ev| update_number("extra_super_annual", event_target_value(&ev))
-                />
+
+                {move || (!input.get().maximize_super).then(|| view! {
+                    <label for="extra-super">
+                        "Extra super (concessional, annual, AUD)"
+                        <InfoTip text="Personal before-tax contributions on top of employer super. They reduce taxable income and count toward the $30,000 concessional cap." />
+                    </label>
+                    <input
+                        id="extra-super"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        prop:value=move || input.get().extra_super_annual
+                        on:input=move |ev| update_number("extra_super_annual", event_target_value(&ev))
+                    />
+                })}
 
                 <label class="check-row">
                     <input
@@ -235,21 +252,40 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     id="deductions"
                     type="number"
                     min="0"
+                    step="0.01"
                     prop:value=move || input.get().deductions_annual
                     on:input=move |ev| update_number("deductions_annual", event_target_value(&ev))
                 />
 
                 <label for="sacrifice">
-                    "Salary sacrifice (annual, AUD)"
-                    <InfoTip text="Pre-tax salary directed into super. Reduces taxable income and take-home pay; counts toward the concessional cap." />
+                    "Salary sacrifice (AUD)"
+                    <InfoTip text="Pre-tax salary directed into super. Reduces taxable income and take-home pay; counts toward the concessional cap. Enter per year or per month." />
                 </label>
                 <input
                     id="sacrifice"
                     type="number"
                     min="0"
-                    prop:value=move || input.get().salary_sacrifice_annual
-                    on:input=move |ev| update_number("salary_sacrifice_annual", event_target_value(&ev))
+                    step="0.01"
+                    prop:value=move || input.get().salary_sacrifice_amount
+                    on:input=move |ev| update_number("salary_sacrifice_amount", event_target_value(&ev))
                 />
+
+                <label for="sacrifice-frequency">"Salary sacrifice frequency"</label>
+                <select
+                    id="sacrifice-frequency"
+                    on:change=move |ev| {
+                        let val = event_target_value(&ev);
+                        input.update(|s| {
+                            s.salary_sacrifice_frequency = match val.as_str() {
+                                "monthly" => ContributionFrequency::Monthly,
+                                _ => ContributionFrequency::Annual,
+                            }
+                        })
+                    }
+                >
+                    <option value="annual" selected=move || input.get().salary_sacrifice_frequency == ContributionFrequency::Annual>"Per year"</option>
+                    <option value="monthly" selected=move || input.get().salary_sacrifice_frequency == ContributionFrequency::Monthly>"Per month"</option>
+                </select>
             </FieldGroup>
 
             {move || (input.get().residency == Residency::Resident).then(|| view! {
@@ -312,6 +348,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                         id="family-income"
                         type="number"
                         min="0"
+                        step="0.01"
                         prop:value=move || input.get().family_income_annual.unwrap_or_default()
                         on:input=move |ev| update_number("family_income_annual", event_target_value(&ev))
                     />
@@ -335,6 +372,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     id="rfb"
                     type="number"
                     min="0"
+                    step="0.01"
                     prop:value=move || input.get().reportable_fringe_benefits_annual
                     on:input=move |ev| update_number("reportable_fringe_benefits_annual", event_target_value(&ev))
                 />
@@ -347,6 +385,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     id="mls-override"
                     type="number"
                     min="0"
+                    step="0.01"
                     prop:value=move || input
                         .get()
                         .mls_income_for_surcharge_annual

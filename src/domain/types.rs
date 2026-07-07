@@ -54,6 +54,13 @@ pub enum IncomeUnit {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ContributionFrequency {
+    #[default]
+    Annual,
+    Monthly,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum MedicareExemption {
     #[default]
     None,
@@ -95,9 +102,12 @@ pub struct CalculatorInput {
     pub includes_super: bool,
     pub super_rate_percent: f64,
     pub extra_super_annual: f64,
+    pub maximize_super: bool,
     pub has_help_debt: bool,
     pub deductions_annual: f64,
-    pub salary_sacrifice_annual: f64,
+    #[serde(alias = "salary_sacrifice_annual")]
+    pub salary_sacrifice_amount: f64,
+    pub salary_sacrifice_frequency: ContributionFrequency,
     pub medicare_exemption: MedicareExemption,
     pub is_sapto_eligible: bool,
     pub has_family: bool,
@@ -119,6 +129,13 @@ impl CalculatorInput {
             IncomeUnit::Annual => self.income_amount,
         }
     }
+
+    pub fn salary_sacrifice_annualised(&self) -> f64 {
+        match self.salary_sacrifice_frequency {
+            ContributionFrequency::Annual => self.salary_sacrifice_amount,
+            ContributionFrequency::Monthly => self.salary_sacrifice_amount * 12.0,
+        }
+    }
 }
 
 impl Default for CalculatorInput {
@@ -136,9 +153,11 @@ impl Default for CalculatorInput {
             includes_super: false,
             super_rate_percent: 12.0,
             extra_super_annual: 0.0,
+            maximize_super: false,
             has_help_debt: false,
             deductions_annual: 0.0,
-            salary_sacrifice_annual: 0.0,
+            salary_sacrifice_amount: 0.0,
+            salary_sacrifice_frequency: ContributionFrequency::Annual,
             medicare_exemption: MedicareExemption::None,
             is_sapto_eligible: false,
             has_family: false,

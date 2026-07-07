@@ -52,9 +52,9 @@ pub fn validate_input(input: &CalculatorInput) -> Vec<ValidationIssue> {
         });
     }
 
-    if input.salary_sacrifice_annual < 0.0 {
+    if input.salary_sacrifice_amount < 0.0 {
         issues.push(ValidationIssue {
-            field: "salary_sacrifice_annual",
+            field: "salary_sacrifice_amount",
             message: "Salary sacrifice must be zero or greater.".to_string(),
         });
     }
@@ -83,9 +83,12 @@ pub fn validate_input(input: &CalculatorInput) -> Vec<ValidationIssue> {
     }
 
     let annual_gross = input.annual_salary() + input.bonus_annual + input.overtime_annual;
-    if input.deductions_annual + input.salary_sacrifice_annual + input.extra_super_annual
-        > annual_gross
-    {
+    let extra_super = if input.maximize_super {
+        0.0
+    } else {
+        input.extra_super_annual
+    };
+    if input.deductions_annual + input.salary_sacrifice_annualised() + extra_super > annual_gross {
         issues.push(ValidationIssue {
             field: "taxable_income_annual",
             message: "Deductions, salary sacrifice, and extra super cannot exceed gross income."
@@ -212,9 +215,9 @@ mod tests {
     #[test]
     fn negative_salary_sacrifice_fails() {
         let mut input = valid_input();
-        input.salary_sacrifice_annual = -50.0;
+        input.salary_sacrifice_amount = -50.0;
         let issues = validate_input(&input);
-        assert!(issues.iter().any(|i| i.field == "salary_sacrifice_annual"));
+        assert!(issues.iter().any(|i| i.field == "salary_sacrifice_amount"));
     }
 
     #[test]
@@ -232,7 +235,7 @@ mod tests {
         let mut input = valid_input();
         input.income_amount = 50_000.0;
         input.deductions_annual = 30_000.0;
-        input.salary_sacrifice_annual = 25_000.0;
+        input.salary_sacrifice_amount = 25_000.0;
         let issues = validate_input(&input);
         assert!(issues.iter().any(|i| i.field == "taxable_income_annual"));
     }
@@ -242,7 +245,7 @@ mod tests {
         let mut input = valid_input();
         input.income_amount = 50_000.0;
         input.deductions_annual = 50_000.0;
-        input.salary_sacrifice_annual = 0.0;
+        input.salary_sacrifice_amount = 0.0;
         let issues = validate_input(&input);
         assert!(!issues.iter().any(|i| i.field == "taxable_income_annual"));
     }

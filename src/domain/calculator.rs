@@ -23,10 +23,19 @@ pub fn calculate_income(
     let gross_base_for_tax = annual_salary + input.bonus_annual + input.overtime_annual;
     // SG is payable on ordinary time earnings (salary + bonus) but not overtime.
     let sg_base = annual_salary + input.bonus_annual;
+    let super_guarantee_annual = sg_base * input.super_rate_percent / 100.0;
+
+    let salary_sacrifice_annual = input.salary_sacrifice_annualised();
+    let extra_super_annual = if input.maximize_super {
+        (rules.concessional_contributions_cap - super_guarantee_annual - salary_sacrifice_annual)
+            .max(0.0)
+    } else {
+        input.extra_super_annual
+    };
 
     let taxable_income_annual = (gross_base_for_tax
-        - input.salary_sacrifice_annual
-        - input.extra_super_annual
+        - salary_sacrifice_annual
+        - extra_super_annual
         - input.deductions_annual)
         .max(0.0);
 
@@ -69,9 +78,8 @@ pub fn calculate_income(
         0.0
     };
 
-    let super_guarantee_annual = sg_base * input.super_rate_percent / 100.0;
     let concessional_contributions_annual =
-        super_guarantee_annual + input.salary_sacrifice_annual + input.extra_super_annual;
+        super_guarantee_annual + salary_sacrifice_annual + extra_super_annual;
 
     let division_293_income = taxable_income_annual + concessional_contributions_annual;
     let division_293_annual = if division_293_income > rules.division_293_threshold {
@@ -87,8 +95,8 @@ pub fn calculate_income(
         + help_repayment_annual;
 
     let net_income_annual = (gross_base_for_tax
-        - input.salary_sacrifice_annual
-        - input.extra_super_annual
+        - salary_sacrifice_annual
+        - extra_super_annual
         - total_withheld_annual)
         .max(0.0);
     let period_divisor = input.pay_frequency.periods_per_year();
@@ -119,6 +127,13 @@ pub fn calculate_income(
 
     if input.includes_super {
         assumptions.push("Salary input is treated as a package including super and converted to a pre-tax base (bonus and overtime are treated as super-exclusive).".to_string());
+    }
+
+    if input.maximize_super {
+        assumptions.push(format!(
+            "Extra concessional super is auto-topped-up by ${:.0} so total contributions reach the ${:.0} cap.",
+            extra_super_annual, rules.concessional_contributions_cap
+        ));
     }
 
     Ok(CalculatorOutput {
@@ -274,7 +289,8 @@ mod tests {
     use super::calculate_income;
     use crate::domain::tax_rules::TaxRules;
     use crate::domain::types::{
-        CalculatorInput, FinancialYear, IncomeUnit, MedicareExemption, PayFrequency, Residency,
+        CalculatorInput, ContributionFrequency, FinancialYear, IncomeUnit, MedicareExemption,
+        PayFrequency, Residency,
     };
 
     fn rules() -> TaxRules {
@@ -580,7 +596,7 @@ mod tests {
     fn concessional_cap_warning_when_exceeded() {
         let mut input = CalculatorInput::default();
         input.income_amount = 200_000.0;
-        input.salary_sacrifice_annual = 10_000.0;
+        input.salary_sacrifice_amount = 10_000.0;
 
         // SG 24,000 + 10,000 sacrifice = 34,000 > 30,000 cap.
         let output = calculate_income(&input, &rules()).unwrap();
@@ -606,6 +622,55 @@ mod tests {
 
         let output = calculate_income(&input, &rules()).unwrap();
         assert_relative_eq!(output.division_293_annual, 0.0, epsilon = 0.01);
+    }
+
+    #[test]
+    fn maximize_super_tops_up_to_cap() {
+        let mut input = CalculatorInput::default();
+        input.income_amount = 100_000.0;
+        input.maximize_super = true;
+
+        // SG 12,000, so top-up = 18,000; taxable drops to 82,000.
+        let output = calculate_income(&input, &rules()).unwrap();
+        assert_relative_eq!(output.concessional_contributions_annual, 30_000.0, epsilon = 0.1);
+        assert_relative_eq!(output.taxable_income_annual, 82_000.0, epsilon = 0.1);
+    }
+
+    #[test]
+    fn maximize_super_counts_sacrifice_toward_cap() {
+        let mut input = CalculatorInput::default();
+        input.income_amount = 100_000.0;
+        input.salary_sacrifice_amount = 10_000.0;
+        input.maximize_super = true;
+
+        // SG 12,000 + sacrifice 10,000, so top-up = 8,000;
+        // taxable = 100,000 - 10,000 - 8,000 = 82,000.
+        let output = calculate_income(&input, &rules()).unwrap();
+        assert_relative_eq!(output.concessional_contributions_annual, 30_000.0, epsilon = 0.1);
+        assert_relative_eq!(output.taxable_income_annual, 82_000.0, epsilon = 0.1);
+    }
+
+    #[test]
+    fn maximize_super_no_top_up_when_already_over_cap() {
+        let mut input = CalculatorInput::default();
+        input.income_amount = 300_000.0;
+        input.maximize_super = true;
+
+        // SG 36,000 already exceeds the 30,000 cap; no top-up.
+        let output = calculate_income(&input, &rules()).unwrap();
+        assert_relative_eq!(output.concessional_contributions_annual, 36_000.0, epsilon = 0.1);
+        assert_relative_eq!(output.taxable_income_annual, 300_000.0, epsilon = 0.1);
+    }
+
+    #[test]
+    fn monthly_salary_sacrifice_annualised() {
+        let mut input = CalculatorInput::default();
+        input.income_amount = 100_000.0;
+        input.salary_sacrifice_amount = 1_000.0;
+        input.salary_sacrifice_frequency = ContributionFrequency::Monthly;
+
+        let output = calculate_income(&input, &rules()).unwrap();
+        assert_relative_eq!(output.taxable_income_annual, 88_000.0, epsilon = 0.1);
     }
 
     #[test]
