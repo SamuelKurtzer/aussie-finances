@@ -1,6 +1,7 @@
 pub const INCOME_STORAGE_KEY: &str = "aus_fin_income_calculator_v1";
 pub const MORTGAGE_STORAGE_KEY: &str = "aus_fin_mortgage_calculator_v1";
 pub const DEBT_RECYCLE_STORAGE_KEY: &str = "aus_fin_debt_recycle_v1";
+pub const BUDGET_STORAGE_KEY: &str = "aus_fin_budget_v1";
 
 #[cfg(target_arch = "wasm32")]
 pub fn load_from_storage<T: serde::de::DeserializeOwned>(key: &str) -> Option<T> {

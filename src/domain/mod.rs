@@ -1,3 +1,4 @@
+pub mod budget;
 pub mod calculator;
 pub mod mortgages;
 pub mod spreadsheet;

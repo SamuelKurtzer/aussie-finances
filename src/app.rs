@@ -1,6 +1,7 @@
 use leptos::*;
 use leptos_router::*;
 
+use crate::pages::budget::BudgetPage;
 use crate::pages::debt_recycling::DebtRecyclingPage;
 use crate::pages::income::IncomePage;
 use crate::pages::mortgages::MortgagesPage;
@@ -22,6 +23,7 @@ pub fn App() -> impl IntoView {
                         <A href="/income">"Income Calculator"</A>
                         <A href="/mortgages">"Mortgages"</A>
                         <A href="/debt-recycling">"Debt Recycling"</A>
+                        <A href="/budget">"Budget"</A>
                         <A href="/spreadsheet">"Spreadsheet"</A>
                     </nav>
                     <div class="workspace-body">
@@ -30,6 +32,7 @@ pub fn App() -> impl IntoView {
                             <Route path="/income" view=|| view! { <IncomePage /> } />
                             <Route path="/mortgages" view=|| view! { <MortgagesPage /> } />
                             <Route path="/debt-recycling" view=|| view! { <DebtRecyclingPage /> } />
+                            <Route path="/budget" view=|| view! { <BudgetPage /> } />
                             <Route path="/spreadsheet" view=|| view! { <SpreadsheetPage /> } />
                         </Routes>
                     </div>

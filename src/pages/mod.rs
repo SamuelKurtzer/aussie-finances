@@ -1,3 +1,4 @@
+pub mod budget;
 pub mod debt_recycling;
 pub mod income;
 pub mod mortgages;

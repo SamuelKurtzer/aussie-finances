@@ -15,7 +15,7 @@ use crate::storage::{
     INCOME_STORAGE_KEY, MORTGAGE_STORAGE_KEY,
 };
 
-fn load_household_outgoings() -> (f64, f64) {
+pub fn load_household_outgoings() -> (f64, f64) {
     let Some(raw) = load_raw_from_storage(MORTGAGE_STORAGE_KEY) else {
         return (0.0, 0.0);
     };
