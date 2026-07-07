@@ -3,6 +3,7 @@ use leptos::*;
 use crate::components::calculator_form::CalculatorForm;
 use crate::components::income_charts::{RateCurveChart, RatePoint, TaxPieChart};
 use crate::components::results_table::ResultsTable;
+use crate::domain::budget::BudgetInput;
 use crate::domain::calculator::calculate_income;
 use crate::domain::mortgages::{
     calculate_mortgage_portfolio, first_year_repayments, load_income_context_from_saved_input,
@@ -11,9 +12,15 @@ use crate::domain::mortgages::{
 use crate::domain::tax_rules::TaxRules;
 use crate::domain::types::{CalculatorError, CalculatorInput, IncomeUnit};
 use crate::storage::{
-    load_from_storage, load_raw_from_storage, save_to_storage, DEBT_RECYCLE_STORAGE_KEY,
-    INCOME_STORAGE_KEY, MORTGAGE_STORAGE_KEY,
+    load_from_storage, load_raw_from_storage, save_to_storage, BUDGET_STORAGE_KEY,
+    DEBT_RECYCLE_STORAGE_KEY, INCOME_STORAGE_KEY, MORTGAGE_STORAGE_KEY,
 };
+
+fn load_budget_annual() -> f64 {
+    load_from_storage::<BudgetInput>(BUDGET_STORAGE_KEY)
+        .map(|b| b.annual_total())
+        .unwrap_or(0.0)
+}
 
 pub fn load_household_outgoings() -> (f64, f64) {
     let Some(raw) = load_raw_from_storage(MORTGAGE_STORAGE_KEY) else {
@@ -125,11 +132,13 @@ pub fn IncomePage() -> impl IntoView {
                         let current_effective = result.effective_tax_rate_percent;
                         let current_marginal = result.marginal_rate_percent;
                         let (mortgage_annual, debt_recycling_annual) = load_household_outgoings();
+                        let expenses_annual = load_budget_annual();
                         view! {
                             <TaxPieChart
                                 result=result
                                 mortgage_annual=mortgage_annual
                                 debt_recycling_annual=debt_recycling_annual
+                                expenses_annual=expenses_annual
                             />
                             {(points.len() >= 2).then(|| view! {
                                 <RateCurveChart
