@@ -46,6 +46,9 @@ The static output is in `dist/`.
    - `dist`
 5. Configure SPA fallback rewrite:
    - route `/*` to `/index.html`
+   - If a rewrite is not configured, the build also emits `dist/404.html`
+     (a copy of `index.html`), which static hosts serve for unknown paths so
+     deep links like `/income` still load the app.
 6. Set deployment to trigger on main branch pushes.
 
 ## Disclaimer

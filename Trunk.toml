@@ -5,3 +5,9 @@ public_url = "/"
 
 [watch]
 watch = ["src", "static", "index.html"]
+
+# SPA fallback for static hosts: serve the app for unknown paths like /income.
+[[hooks]]
+stage = "post_build"
+command = "sh"
+command_arguments = ["-c", "cp \"$TRUNK_STAGING_DIR/index.html\" \"$TRUNK_STAGING_DIR/404.html\""]
