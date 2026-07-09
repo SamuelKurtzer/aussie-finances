@@ -73,6 +73,7 @@
         max-width: 1120px;
         margin: 0 auto;
         padding: 1.1rem;
+        padding-top: calc(1.1rem + env(safe-area-inset-top, 0px));
       }
       .tabs {
         display: flex;
@@ -429,6 +430,36 @@
         letter-spacing: 0.06em;
         margin: 0.6rem 0 0.3rem;
       }
+      details.collapsible > summary {
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      details.collapsible > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.collapsible > summary h2,
+      details.collapsible > summary h3 {
+        margin: 0.5rem 0;
+      }
+      /* Collapse indicator sits at the right edge of the heading line:
+         points at the title when closed, down at the content when open. */
+      details.collapsible > summary::after {
+        content: "<";
+        color: var(--muted);
+        font-weight: 700;
+        margin-left: auto;
+        padding-left: 0.5rem;
+      }
+      details.collapsible[open] > summary::after {
+        content: "v";
+      }
+      details.collapsible > summary:hover::after,
+      details.collapsible > summary:focus-visible::after {
+        color: var(--accent);
+      }
       .pie-wrap {
         display: flex;
         gap: 1.2rem;
@@ -544,9 +575,10 @@
       @media (max-width: 720px) {
         .site {
           padding: 0.75rem;
-          padding-left: calc(0.75rem + env(safe-area-inset-left));
-          padding-right: calc(0.75rem + env(safe-area-inset-right));
-          padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+          padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+          padding-left: calc(0.75rem + env(safe-area-inset-left, 0px));
+          padding-right: calc(0.75rem + env(safe-area-inset-right, 0px));
+          padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
         }
         /* Single scrollable row of tabs instead of wrapping. */
         .tabs {

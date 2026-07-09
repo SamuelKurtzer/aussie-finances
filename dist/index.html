@@ -6,8 +6,8 @@
     <title>Aus Fin</title>
     
 <script type="module">
-import init, * as bindings from '/aus-fin-2d5c6e32d761bae1.js';
-const wasm = await init({ module_or_path: '/aus-fin-2d5c6e32d761bae1_bg.wasm' });
+import init, * as bindings from '/aus-fin-253df0585e1f516d.js';
+const wasm = await init({ module_or_path: '/aus-fin-253df0585e1f516d_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -84,6 +84,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         max-width: 1120px;
         margin: 0 auto;
         padding: 1.1rem;
+        padding-top: calc(1.1rem + env(safe-area-inset-top, 0px));
       }
       .tabs {
         display: flex;
@@ -440,6 +441,36 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         letter-spacing: 0.06em;
         margin: 0.6rem 0 0.3rem;
       }
+      details.collapsible > summary {
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      details.collapsible > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.collapsible > summary h2,
+      details.collapsible > summary h3 {
+        margin: 0.5rem 0;
+      }
+      /* Collapse indicator sits at the right edge of the heading line:
+         points at the title when closed, down at the content when open. */
+      details.collapsible > summary::after {
+        content: "<";
+        color: var(--muted);
+        font-weight: 700;
+        margin-left: auto;
+        padding-left: 0.5rem;
+      }
+      details.collapsible[open] > summary::after {
+        content: "v";
+      }
+      details.collapsible > summary:hover::after,
+      details.collapsible > summary:focus-visible::after {
+        color: var(--accent);
+      }
       .pie-wrap {
         display: flex;
         gap: 1.2rem;
@@ -555,9 +586,10 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
       @media (max-width: 720px) {
         .site {
           padding: 0.75rem;
-          padding-left: calc(0.75rem + env(safe-area-inset-left));
-          padding-right: calc(0.75rem + env(safe-area-inset-right));
-          padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+          padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+          padding-left: calc(0.75rem + env(safe-area-inset-left, 0px));
+          padding-right: calc(0.75rem + env(safe-area-inset-right, 0px));
+          padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
         }
         /* Single scrollable row of tabs instead of wrapping. */
         .tabs {
@@ -601,6 +633,6 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         }
       }
     </style>
-  <link rel="modulepreload" href="/aus-fin-2d5c6e32d761bae1.js" crossorigin="anonymous" integrity="sha384-CJHjM/CrCtxB6RyjuWFGgm9f1BF4JPCOvkG7Lt8a5ZUnqO+//z9DnlSlBwx1gUoW"><link rel="preload" href="/aus-fin-2d5c6e32d761bae1_bg.wasm" crossorigin="anonymous" integrity="sha384-Ehi9Rsa5KSy8lG083Kgqzgwfm0ObDER+icMcWWzzc9d1QZmnrs8447bi4S39vOCP" as="fetch" type="application/wasm"></head>
+  <link rel="modulepreload" href="/aus-fin-253df0585e1f516d.js" crossorigin="anonymous" integrity="sha384-kN90q0j7MvQFDoJm4RfCj9QVHYvuXCqRwEpoM9V63RpbkkhP5h30e8Ai4kpNP5NK"><link rel="preload" href="/aus-fin-253df0585e1f516d_bg.wasm" crossorigin="anonymous" integrity="sha384-ofYcO4/LA9rRdC4yVu16p4mhJkKF7ap2aK8jZ7mgZPp04Zator15iNMj8o2QCyZ8" as="fetch" type="application/wasm"></head>
   <body></body>
 </html>

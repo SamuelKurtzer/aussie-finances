@@ -1,5 +1,6 @@
 use leptos::*;
 
+use crate::components::collapsible::Collapsible;
 use crate::domain::mortgages::{MortgagePortfolioOutput, MortgageSummary};
 use crate::formatting::fmt_money;
 
@@ -60,7 +61,7 @@ pub fn MortgageSummaryView(output: MortgagePortfolioOutput) -> impl IntoView {
                 </article>
             </div>
 
-            <h3>"By Mortgage"</h3>
+            <Collapsible title="By Mortgage">
             <table>
                 <thead>
                     <tr>
@@ -89,6 +90,7 @@ pub fn MortgageSummaryView(output: MortgagePortfolioOutput) -> impl IntoView {
                         .collect_view()}
                 </tbody>
             </table>
+            </Collapsible>
         </section>
     }
 }

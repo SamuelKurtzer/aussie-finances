@@ -1,6 +1,7 @@
 use leptos::*;
 use wasm_bindgen::JsCast;
 
+use crate::components::collapsible::Collapsible;
 use crate::formatting::fmt_currency;
 
 #[derive(Clone)]
@@ -273,7 +274,7 @@ pub fn MultiLineChart(
 
     view! {
         <section class="chart-block">
-            <h3>{title}</h3>
+            <Collapsible title=title>
 
             <svg
                 viewBox="0 0 1040 460"
@@ -300,6 +301,7 @@ pub fn MultiLineChart(
             </svg>
 
             {hover_readout}
+            </Collapsible>
         </section>
     }
 }

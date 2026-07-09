@@ -1,5 +1,6 @@
 pub mod amortization_table;
 pub mod calculator_form;
+pub mod collapsible;
 pub mod field_group;
 pub mod income_charts;
 pub mod info_tip;

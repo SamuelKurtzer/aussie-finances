@@ -1,5 +1,6 @@
 use leptos::*;
 
+use crate::components::collapsible::Collapsible;
 use crate::domain::budget::{BudgetInput, ExpenseFrequency, ExpenseItem};
 use crate::formatting::fmt_money;
 use crate::pages::income::load_household_outgoings;
@@ -49,8 +50,7 @@ pub fn BudgetPage() -> impl IntoView {
                 "Track ongoing expenses. Amounts are converted to monthly equivalents and compared against your net income from the Income Calculator tab."
             </p>
 
-            <section class="field-group">
-                <h3>"Ongoing Expenses"</h3>
+            <Collapsible title="Ongoing Expenses" class="field-group">
                 {
                     // Memo so typing in a row doesn't rebuild the table and steal focus.
                     let has_items = create_memo(move |_| !budget.get().items.is_empty());
@@ -172,10 +172,9 @@ pub fn BudgetPage() -> impl IntoView {
                     })
                 }
                 <button type="button" on:click=add_item>"+ Add Expense"</button>
-            </section>
+            </Collapsible>
 
-            <section>
-                <h3>"Summary"</h3>
+            <Collapsible title="Budget Summary">
                 <div class="summary-grid">
                     <article class="mini-card">
                         <span class="muted">"Monthly Expenses"</span>
@@ -215,7 +214,7 @@ pub fn BudgetPage() -> impl IntoView {
                         "Set up the Income Calculator tab to compare expenses against your net income."
                     </p>
                 })}
-            </section>
+            </Collapsible>
         </section>
     }
 }

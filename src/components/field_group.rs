@@ -1,5 +1,7 @@
 use leptos::*;
 
+use crate::components::collapsible::Collapsible;
+
 #[component]
 pub fn FieldGroup(
     label: &'static str,
@@ -7,10 +9,9 @@ pub fn FieldGroup(
     children: Children,
 ) -> impl IntoView {
     view! {
-        <section class="field-group">
-            <h3>{label}</h3>
+        <Collapsible title=label class="field-group">
             {help.map(|text| view! { <p class="muted">{text}</p> })}
             {children()}
-        </section>
+        </Collapsible>
     }
 }

@@ -1,5 +1,6 @@
 use leptos::*;
 
+use crate::components::collapsible::Collapsible;
 use crate::components::line_chart::{ChartLine, MultiLineChart};
 use crate::domain::mortgages::{
     calculate_mortgage_portfolio, DebtRecycleInput, MortgagePortfolioInput, MortgageValidationError,
@@ -37,8 +38,7 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                 portions, and principal repayments erode the deductible share (contamination)."
             </p>
 
-            <section class="field-group">
-                <h3>"Strategy Inputs"</h3>
+            <Collapsible title="Strategy Inputs" class="field-group">
                 <label class="check-row">
                     <input
                         type="checkbox"
@@ -175,7 +175,7 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                         />
                     </div>
                 </div>
-            </section>
+            </Collapsible>
 
             {move || {
                 match result.get() {
@@ -198,7 +198,7 @@ pub fn DebtRecyclingPage() -> impl IntoView {
 
                             view! {
                                 <section>
-                                    <h3>"Debt Recycle Summary"</h3>
+                                    <Collapsible title="Debt Recycle Summary">
                                     <div class="summary-grid">
                                         <article class="mini-card">
                                             <span class="muted">"Total Redrawn"</span>
@@ -282,8 +282,9 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                                             </ul>
                                         }.into_view()
                                     }}
+                                    </Collapsible>
 
-                                    <h3>"Monthly Redraw Events"</h3>
+                                    <Collapsible title="Monthly Redraw Events" closed=true>
                                     <div class="table-wrap">
                                         <table>
                                             <thead>
@@ -323,6 +324,7 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                                             </tbody>
                                         </table>
                                     </div>
+                                    </Collapsible>
                                 </section>
                             }.into_view()
                         } else {

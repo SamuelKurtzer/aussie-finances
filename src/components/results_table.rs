@@ -1,5 +1,6 @@
 use leptos::*;
 
+use crate::components::collapsible::Collapsible;
 use crate::components::info_tip::InfoTip;
 use crate::domain::types::CalculatorOutput;
 use crate::formatting::{fmt_currency, fmt_money};
@@ -171,10 +172,10 @@ pub fn ResultsTable(result: CalculatorOutput) -> impl IntoView {
                         .collect_view()}
                 </ul>
             })}
-            <h3>
-                "Tax Bracket Breakdown"
-                <InfoTip text="How your taxable income fills each bracket. Only the income inside a bracket is taxed at that bracket's rate." />
-            </h3>
+            <Collapsible title="Tax Bracket Breakdown">
+            <p class="muted">
+                "How your taxable income fills each bracket. Only the income inside a bracket is taxed at that bracket's rate."
+            </p>
             <table>
                 <thead>
                     <tr>
@@ -208,6 +209,7 @@ pub fn ResultsTable(result: CalculatorOutput) -> impl IntoView {
                         .collect_view()}
                 </tbody>
             </table>
+            </Collapsible>
             <details class="fine-print">
                 <summary>"Assumptions"</summary>
                 <ul>

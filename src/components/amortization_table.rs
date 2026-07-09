@@ -1,5 +1,6 @@
 use leptos::*;
 
+use crate::components::collapsible::Collapsible;
 use crate::domain::mortgages::AmortizationRow;
 use crate::domain::spreadsheet::map_periods_to_months;
 use crate::formatting::{fmt_int_commas, fmt_money};
@@ -15,7 +16,7 @@ pub fn AmortizationTable(rows: Vec<AmortizationRow>, period_months: Vec<f64>) ->
 
     view! {
         <section>
-            <h3>"Amortization"</h3>
+            <Collapsible title="Amortization">
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -47,6 +48,7 @@ pub fn AmortizationTable(rows: Vec<AmortizationRow>, period_months: Vec<f64>) ->
                     </tbody>
                 </table>
             </div>
+            </Collapsible>
         </section>
     }
 }

@@ -1,5 +1,6 @@
 use leptos::*;
 
+use crate::components::collapsible::Collapsible;
 use crate::components::mortgage_editor::MortgageEditor;
 use crate::components::mortgage_results::MortgageResults;
 use crate::domain::mortgages::{
@@ -68,8 +69,7 @@ pub fn MortgagesPage() -> impl IntoView {
                     "Model multiple mortgages and splits, project balances over time, and track repayment pressure against net income."
                 </p>
 
-                <section class="field-group">
-                    <h3>"Portfolio Settings"</h3>
+                <Collapsible title="Portfolio Settings" class="field-group">
                     <label for="cadence">"Repayment cadence"</label>
                     <select
                         id="cadence"
@@ -117,7 +117,7 @@ pub fn MortgagesPage() -> impl IntoView {
                         <button type="button" on:click=add_mortgage>"Add Mortgage"</button>
                         <button type="button" class="secondary" on:click=reset>"Reset"</button>
                     </div>
-                </section>
+                </Collapsible>
 
                 <For
                     each=move || portfolio.get().mortgages

@@ -1,5 +1,6 @@
 use leptos::*;
 
+use crate::components::collapsible::Collapsible;
 use crate::domain::types::CalculatorOutput;
 use crate::formatting::{fmt_currency, fmt_money};
 
@@ -129,7 +130,7 @@ pub fn TaxPieChart(
 
     view! {
         <section class="chart-block">
-            <h3>"Where Your Gross Income Goes"</h3>
+            <Collapsible title="Where Your Gross Income Goes">
             <div class="pie-wrap">
                 <svg
                     viewBox="0 0 260 260"
@@ -152,6 +153,7 @@ pub fn TaxPieChart(
                     })}
                 </div>
             </div>
+            </Collapsible>
         </section>
     }
 }
@@ -241,7 +243,7 @@ pub fn RateCurveChart(
 
     view! {
         <section class="chart-block">
-            <h3>"Tax Rates Across Income"</h3>
+            <Collapsible title="Tax Rates Across Income">
             <svg
                 viewBox="0 0 1040 420"
                 class="line-chart"
@@ -280,6 +282,7 @@ pub fn RateCurveChart(
                     <strong>{format!("{current_effective:.2}%")}</strong>
                 </div>
             </div>
+            </Collapsible>
         </section>
     }
 }

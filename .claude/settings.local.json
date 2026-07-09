@@ -78,7 +78,10 @@
       "Bash(git check-ignore *)",
       "Bash(git commit -q -m 'Track .claude local permission settings *)",
       "Bash(set -o pipefail)",
-      "Bash(export ANDROID_HOME=\"$HOME/Android/Sdk\" NDK_HOME=\"$HOME/Android/Sdk/ndk/27.2.12479018\" JAVA_HOME=/usr/lib/jvm/java-21-openjdk)"
+      "Bash(export ANDROID_HOME=\"$HOME/Android/Sdk\" NDK_HOME=\"$HOME/Android/Sdk/ndk/27.2.12479018\" JAVA_HOME=/usr/lib/jvm/java-21-openjdk)",
+      "Bash(git commit -q -m 'Add generated Android project \\(cargo tauri android init\\) *)",
+      "Bash(awk 'NR>=40 && NR<=175 && /<\\\\/section>|button|<h3>/' src/pages/debt_recycling.rs)",
+      "Bash(curl -s http://127.0.0.1:1420/)"
     ]
   }
 }
