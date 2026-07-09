@@ -75,7 +75,10 @@
       "Bash(export JAVA_HOME=/usr/lib/jvm/java-21-openjdk ANDROID_HOME=\"$HOME/Android/Sdk\")",
       "Bash(yes)",
       "Bash(git commit -q -m 'Track .claude project settings *)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(git commit -q -m 'Track .claude local permission settings *)",
+      "Bash(set -o pipefail)",
+      "Bash(export ANDROID_HOME=\"$HOME/Android/Sdk\" NDK_HOME=\"$HOME/Android/Sdk/ndk/27.2.12479018\" JAVA_HOME=/usr/lib/jvm/java-21-openjdk)"
     ]
   }
 }
