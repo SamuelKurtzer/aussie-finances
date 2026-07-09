@@ -6,6 +6,14 @@ public_url = "/"
 [watch]
 watch = ["src", "static", "index.html"]
 
+# Fixed port so Tauri's devUrl (http://localhost:1420) can find the dev server.
+# 0.0.0.0 lets Android emulators/devices reach it during `cargo tauri android dev`.
+[serve]
+addresses = ["0.0.0.0"]
+port = 1420
+open = false
+ws_protocol = "ws"
+
 # SPA fallback for static hosts: serve the app for unknown paths like /income.
 [[hooks]]
 stage = "post_build"
