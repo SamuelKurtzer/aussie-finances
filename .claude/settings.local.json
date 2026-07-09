@@ -81,7 +81,18 @@
       "Bash(export ANDROID_HOME=\"$HOME/Android/Sdk\" NDK_HOME=\"$HOME/Android/Sdk/ndk/27.2.12479018\" JAVA_HOME=/usr/lib/jvm/java-21-openjdk)",
       "Bash(git commit -q -m 'Add generated Android project \\(cargo tauri android init\\) *)",
       "Bash(awk 'NR>=40 && NR<=175 && /<\\\\/section>|button|<h3>/' src/pages/debt_recycling.rs)",
-      "Bash(curl -s http://127.0.0.1:1420/)"
+      "Bash(curl -s http://127.0.0.1:1420/)",
+      "Bash(awk '{print $5, $9}')",
+      "Bash(/home/desmond/.cache/trunk/wasm-opt-version_123/bin/wasm-opt --version)",
+      "Bash(/home/desmond/.cache/trunk/wasm-opt-version_123/bin/wasm-opt -Oz -o /dev/null dist/.stage/aus-fin-*_bg.wasm)",
+      "Bash(fc-list)",
+      "Bash(fc-list : family)",
+      "Bash(magick -size 1024x1024 'xc:#0b0b09' -fill none -stroke '#ffb000' -strokewidth 20 -draw 'rectangle 72,72 952,952' -fill '#8a6200' -stroke none -font Liberation-Mono-Bold -pointsize 150 -annotate +150+340 // -fill '#ffb000' -font Liberation-Mono-Bold -pointsize 340 -gravity center -annotate +0+90 'A$' /tmp/claude-1000/-home-desmond-Code-aussie-finances/ac6a020e-2df9-4c76-9f04-8ab0486a0ccd/scratchpad/app-icon.png)",
+      "Bash(magick /tmp/claude-1000/-home-desmond-Code-aussie-finances/ac6a020e-2df9-4c76-9f04-8ab0486a0ccd/scratchpad/app-icon.png -resize 128x128 /tmp/claude-1000/-home-desmond-Code-aussie-finances/ac6a020e-2df9-4c76-9f04-8ab0486a0ccd/scratchpad/icon-preview.png)",
+      "Bash(magick /tmp/claude-1000/-home-desmond-Code-aussie-finances/ac6a020e-2df9-4c76-9f04-8ab0486a0ccd/scratchpad/app-icon.png -resize 64x64 static/favicon.png)",
+      "Bash(git commit -q -m 'Add data backup, net-to-gross solver, and web polish *)",
+      "Bash(git commit -q -m 'Brand app icons and require double back press to exit on Android *)",
+      "Bash(git commit -q -m 'Refresh tech debt backlog and add CI build workflow *)"
     ]
   }
 }
