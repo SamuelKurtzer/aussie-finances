@@ -1,5 +1,6 @@
 use leptos::*;
 
+use crate::backup::trigger_download;
 use crate::domain::spreadsheet::{build_spreadsheet, rows_to_csv, SpreadsheetRow};
 use crate::formatting::{fmt_int_commas, fmt_money};
 use crate::storage::{
@@ -37,36 +38,6 @@ fn load_mortgage_output() -> Option<crate::domain::mortgages::MortgagePortfolioO
     crate::domain::mortgages::calculate_mortgage_portfolio(&portfolio, income_ctx.as_ref()).ok()
 }
 
-#[cfg(target_arch = "wasm32")]
-fn trigger_csv_download(csv: &str) {
-    use wasm_bindgen::JsCast;
-    use wasm_bindgen::JsValue;
-
-    let array = js_sys::Array::new();
-    array.push(&JsValue::from_str(csv));
-    let opts = web_sys::BlobPropertyBag::new();
-    opts.set_type("text/csv");
-    let blob = web_sys::Blob::new_with_str_sequence_and_options(&array, &opts).unwrap();
-    let url = web_sys::Url::create_object_url_with_blob(&blob).unwrap();
-
-    let document = web_sys::window().unwrap().document().unwrap();
-    let a = document
-        .create_element("a")
-        .unwrap()
-        .dyn_into::<web_sys::HtmlAnchorElement>()
-        .unwrap();
-    a.set_href(&url);
-    a.set_download("aus-fin-spreadsheet.csv");
-    a.style().set_property("display", "none").unwrap();
-    document.body().unwrap().append_child(&a).unwrap();
-    a.click();
-    document.body().unwrap().remove_child(&a).unwrap();
-    web_sys::Url::revoke_object_url(&url).unwrap();
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn trigger_csv_download(_csv: &str) {}
-
 #[component]
 pub fn SpreadsheetPage() -> impl IntoView {
     let rows = create_memo(move |_| {
@@ -81,7 +52,7 @@ pub fn SpreadsheetPage() -> impl IntoView {
             return;
         }
         let csv = rows_to_csv(&data);
-        trigger_csv_download(&csv);
+        trigger_download(&csv, "aus-fin-spreadsheet.csv", "text/csv");
     };
 
     view! {

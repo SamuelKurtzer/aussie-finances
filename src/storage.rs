@@ -4,6 +4,15 @@ pub const DEBT_RECYCLE_STORAGE_KEY: &str = "aus_fin_debt_recycle_v1";
 pub const BUDGET_STORAGE_KEY: &str = "aus_fin_budget_v1";
 pub const ACTIVE_TAB_STORAGE_KEY: &str = "aus_fin_active_tab_v1";
 
+/// Every key included in backup export/import.
+pub const ALL_BACKUP_KEYS: &[&str] = &[
+    INCOME_STORAGE_KEY,
+    MORTGAGE_STORAGE_KEY,
+    DEBT_RECYCLE_STORAGE_KEY,
+    BUDGET_STORAGE_KEY,
+    ACTIVE_TAB_STORAGE_KEY,
+];
+
 #[cfg(target_arch = "wasm32")]
 pub fn load_from_storage<T: serde::de::DeserializeOwned>(key: &str) -> Option<T> {
     let window = web_sys::window()?;
@@ -28,6 +37,18 @@ pub fn load_raw_from_storage(key: &str) -> Option<String> {
 pub fn load_raw_from_storage(_key: &str) -> Option<String> {
     None
 }
+
+#[cfg(target_arch = "wasm32")]
+pub fn save_raw_to_storage(key: &str, raw: &str) {
+    if let Some(window) = web_sys::window() {
+        if let Ok(Some(storage)) = window.local_storage() {
+            let _ = storage.set_item(key, raw);
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn save_raw_to_storage(_key: &str, _raw: &str) {}
 
 #[cfg(target_arch = "wasm32")]
 pub fn save_to_storage<T: serde::Serialize>(key: &str, value: &T) {

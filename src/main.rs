@@ -1,4 +1,5 @@
 mod app;
+mod backup;
 mod components;
 mod domain;
 mod formatting;

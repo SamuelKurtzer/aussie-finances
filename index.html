@@ -4,7 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Aus Fin</title>
-    <link data-trunk rel="rust" data-bin="aus-fin" />
+    <link data-trunk rel="copy-file" href="static/favicon.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link data-trunk rel="rust" data-bin="aus-fin" data-wasm-opt="z" />
     <style>
       :root {
         --bg: #0b0b09;
@@ -115,6 +117,17 @@
       }
       .hero {
         margin-bottom: 0.75rem;
+      }
+      .hero-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+      .hero-actions {
+        display: flex;
+        gap: 0.6rem;
       }
       .hero p {
         font-size: 0.85rem;

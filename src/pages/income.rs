@@ -1,16 +1,18 @@
 use leptos::*;
 
 use crate::components::calculator_form::CalculatorForm;
+use crate::components::collapsible::Collapsible;
 use crate::components::income_charts::{RateCurveChart, RatePoint, TaxPieChart};
 use crate::components::results_table::ResultsTable;
 use crate::domain::budget::BudgetInput;
-use crate::domain::calculator::calculate_income;
+use crate::domain::calculator::{calculate_income, solve_gross_for_net};
+use crate::formatting::fmt_money;
 use crate::domain::mortgages::{
     calculate_mortgage_portfolio, first_year_repayments, load_income_context_from_saved_input,
     DebtRecycleInput, MortgagePortfolioInput,
 };
 use crate::domain::tax_rules::TaxRules;
-use crate::domain::types::{CalculatorError, CalculatorInput, IncomeUnit};
+use crate::domain::types::{CalculatorError, CalculatorInput, IncomeUnit, PayFrequency};
 use crate::storage::{
     load_from_storage, load_raw_from_storage, save_to_storage, BUDGET_STORAGE_KEY,
     DEBT_RECYCLE_STORAGE_KEY, INCOME_STORAGE_KEY, MORTGAGE_STORAGE_KEY,
@@ -66,6 +68,19 @@ pub fn IncomePage() -> impl IntoView {
         calculate_income(&current, &rules)
     });
 
+    let target_net = create_rw_signal(0.0_f64);
+    let target_freq = create_rw_signal(PayFrequency::Annually);
+    let required_gross = create_memo(move |_| {
+        let target = target_net.get();
+        if target <= 0.0 {
+            return None;
+        }
+        let current = input.get();
+        let rules = TaxRules::for_year(current.financial_year);
+        let annual_target = target * target_freq.get().periods_per_year();
+        solve_gross_for_net(annual_target, &current, &rules)
+    });
+
     let rate_curve = create_memo(move |_| {
         let current = input.get();
         let rules = TaxRules::for_year(current.financial_year);
@@ -100,6 +115,68 @@ pub fn IncomePage() -> impl IntoView {
                     "Gross-to-net estimate for FY 2024-25 or 2025-26. Resident, non-resident, and working holiday maker rates."
                 </p>
                 <CalculatorForm input=input />
+
+                <Collapsible title="Net to Gross" closed=true>
+                    <p class="muted">
+                        "Find the salary needed to take home a target net amount, using the settings above (year, residency, super, deductions)."
+                    </p>
+                    <label for="target-net">"Target net income (AUD)"</label>
+                    <input
+                        id="target-net"
+                        type="number" inputmode="decimal"
+                        min="0"
+                        step="100"
+                        prop:value=move || {
+                            let v = target_net.get();
+                            if v > 0.0 { v.to_string() } else { String::new() }
+                        }
+                        on:input=move |ev| {
+                            target_net.set(event_target_value(&ev).parse::<f64>().unwrap_or(0.0));
+                        }
+                    />
+                    <label for="target-net-freq">"Target is per"</label>
+                    <select
+                        id="target-net-freq"
+                        on:change=move |ev| {
+                            target_freq.set(match event_target_value(&ev).as_str() {
+                                "weekly" => PayFrequency::Weekly,
+                                "fortnightly" => PayFrequency::Fortnightly,
+                                "monthly" => PayFrequency::Monthly,
+                                _ => PayFrequency::Annually,
+                            });
+                        }
+                    >
+                        <option value="annually" selected=move || target_freq.get() == PayFrequency::Annually>"Year"</option>
+                        <option value="monthly" selected=move || target_freq.get() == PayFrequency::Monthly>"Month"</option>
+                        <option value="fortnightly" selected=move || target_freq.get() == PayFrequency::Fortnightly>"Fortnight"</option>
+                        <option value="weekly" selected=move || target_freq.get() == PayFrequency::Weekly>"Week"</option>
+                    </select>
+                    {move || {
+                        let target = target_net.get();
+                        (target > 0.0).then(|| {
+                            match required_gross.get() {
+                                Some(gross) => {
+                                    let label = if input.get().includes_super {
+                                        "Required Package (Incl. Super)"
+                                    } else {
+                                        "Required Gross Salary"
+                                    };
+                                    view! {
+                                        <div class="summary-grid">
+                                            <article class="mini-card">
+                                                <span class="muted">{label}</span>
+                                                <strong>{format!("{} / year", fmt_money(gross))}</strong>
+                                            </article>
+                                        </div>
+                                    }.into_view()
+                                }
+                                None => view! {
+                                    <p class="error">"No achievable salary found for that target."</p>
+                                }.into_view(),
+                            }
+                        })
+                    }}
+                </Collapsible>
             </div>
 
             <div class="panel">

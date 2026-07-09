@@ -5,9 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Aus Fin</title>
     
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    
 <script type="module">
-import init, * as bindings from '/aus-fin-253df0585e1f516d.js';
-const wasm = await init({ module_or_path: '/aus-fin-253df0585e1f516d_bg.wasm' });
+import init, * as bindings from '/aus-fin-5bbcbf9be5a98484.js';
+const wasm = await init({ module_or_path: '/aus-fin-5bbcbf9be5a98484_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -126,6 +128,17 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
       }
       .hero {
         margin-bottom: 0.75rem;
+      }
+      .hero-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+      .hero-actions {
+        display: flex;
+        gap: 0.6rem;
       }
       .hero p {
         font-size: 0.85rem;
@@ -633,6 +646,6 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         }
       }
     </style>
-  <link rel="modulepreload" href="/aus-fin-253df0585e1f516d.js" crossorigin="anonymous" integrity="sha384-kN90q0j7MvQFDoJm4RfCj9QVHYvuXCqRwEpoM9V63RpbkkhP5h30e8Ai4kpNP5NK"><link rel="preload" href="/aus-fin-253df0585e1f516d_bg.wasm" crossorigin="anonymous" integrity="sha384-ofYcO4/LA9rRdC4yVu16p4mhJkKF7ap2aK8jZ7mgZPp04Zator15iNMj8o2QCyZ8" as="fetch" type="application/wasm"></head>
+  <link rel="modulepreload" href="/aus-fin-5bbcbf9be5a98484.js" crossorigin="anonymous" integrity="sha384-NV6iP3J+rmxpcazCJmqKYPk98Z2sn8oblUZyrzv+z9fehBp7eA1qG9TEMbA+wCsg"><link rel="preload" href="/aus-fin-5bbcbf9be5a98484_bg.wasm" crossorigin="anonymous" integrity="sha384-wLlKZZ9N0QFAuvbvXmSdJFI1P3btatkCbZZToRGi/2zOrMEaUATyjgRz/D9HgviO" as="fetch" type="application/wasm"></head>
   <body></body>
 </html>

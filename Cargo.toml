@@ -1,6 +1,16 @@
 [workspace]
 members = ["src-tauri"]
 
+# Small wasm downloads matter more than compile time or peak speed here.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+# "debuginfo" not true: full strip removes the wasm target_features
+# section, which breaks wasm-opt's feature detection.
+strip = "debuginfo"
+panic = "abort"
+
 [package]
 name = "aus-fin"
 version = "0.1.0"
@@ -12,7 +22,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 js-sys = "0.3"
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Window", "Storage", "Element", "DomRect", "Blob", "BlobPropertyBag", "Url", "HtmlAnchorElement", "Document", "HtmlElement", "HtmlDetailsElement"] }
+web-sys = { version = "0.3", features = ["Window", "Storage", "Element", "DomRect", "Blob", "BlobPropertyBag", "Url", "HtmlAnchorElement", "Document", "HtmlElement", "HtmlDetailsElement", "HtmlInputElement", "File", "FileList", "FileReader", "ProgressEvent", "Location", "ScrollIntoViewOptions", "ScrollLogicalPosition"] }
 
 [dev-dependencies]
 approx = "0.5"

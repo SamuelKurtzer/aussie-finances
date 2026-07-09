@@ -282,6 +282,68 @@ fn compute_mls(mls_income: f64, input: &CalculatorInput, rules: &TaxRules) -> f6
     mls_income * find_bracket_rate(tier_test_income, tiers)
 }
 
+/// Find the salary (in the template's `includes_super` terms) that yields the
+/// target annual net income, holding every other input fixed.
+///
+/// Net income is not monotonic in gross: MLS and the FY 2024-25 HELP tables
+/// apply their rate to the whole income, so crossing a threshold drops net
+/// pay. A coarse upward scan finds the first bracket containing a crossing,
+/// then bisection pins it down, so the smallest qualifying salary is
+/// returned rather than one beyond the next cliff.
+pub fn solve_gross_for_net(
+    target_net_annual: f64,
+    template: &CalculatorInput,
+    rules: &TaxRules,
+) -> Option<f64> {
+    if !target_net_annual.is_finite() || target_net_annual <= 0.0 {
+        return None;
+    }
+    let net_for = |gross: f64| -> Option<f64> {
+        let mut input = template.clone();
+        input.income_amount = gross;
+        input.income_unit = crate::domain::types::IncomeUnit::Annual;
+        calculate_income(&input, rules)
+            .ok()
+            .map(|out| out.net_income_annual)
+    };
+
+    let mut upper = (target_net_annual * 2.0).max(50_000.0);
+    let mut expansions = 0;
+    while net_for(upper)? < target_net_annual {
+        upper *= 2.0;
+        expansions += 1;
+        if expansions > 12 {
+            return None;
+        }
+    }
+
+    // Coarse scan for the first step that reaches the target. Steps are
+    // narrower than the known cliffs (MLS dips span >$1k).
+    let step = (upper / 400.0).max(50.0);
+    let mut lo = 0.0_f64;
+    let mut hi = upper;
+    let mut gross = step;
+    while gross < upper {
+        if net_for(gross)? >= target_net_annual {
+            hi = gross;
+            lo = gross - step;
+            break;
+        }
+        lo = gross;
+        gross += step;
+    }
+
+    for _ in 0..60 {
+        let mid = 0.5 * (lo + hi);
+        if net_for(mid)? >= target_net_annual {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    Some(hi)
+}
+
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
@@ -743,6 +805,40 @@ mod tests {
         let output = calculate_income(&input, &rules()).unwrap();
         let sum: f64 = output.bracket_breakdown.iter().map(|b| b.tax_amount).sum();
         assert_relative_eq!(sum, output.income_tax_annual, epsilon = 0.01);
+    }
+
+    #[test]
+    fn solve_gross_for_net_round_trips() {
+        let input = CalculatorInput::default();
+        let output = calculate_income(&input, &rules()).unwrap();
+        let solved =
+            super::solve_gross_for_net(output.net_income_annual, &input, &rules()).unwrap();
+        assert_relative_eq!(solved, 100_000.0, epsilon = 1.0);
+    }
+
+    #[test]
+    fn solve_gross_for_net_with_help_debt_meets_target() {
+        let mut input = CalculatorInput::default();
+        input.financial_year = FinancialYear::Fy2024_25;
+        input.has_help_debt = true;
+        let rules = TaxRules::fy_2024_25();
+
+        let target = 60_000.0;
+        let solved = super::solve_gross_for_net(target, &input, &rules).unwrap();
+        let mut check = input.clone();
+        check.income_amount = solved;
+        check.income_unit = IncomeUnit::Annual;
+        let net = calculate_income(&check, &rules).unwrap().net_income_annual;
+        assert!(net >= target - 1.0, "net {net} fell short of target {target}");
+    }
+
+    #[test]
+    fn solve_gross_for_net_rejects_invalid_targets() {
+        let input = CalculatorInput::default();
+        assert!(super::solve_gross_for_net(f64::INFINITY, &input, &rules()).is_none());
+        assert!(super::solve_gross_for_net(f64::NAN, &input, &rules()).is_none());
+        assert!(super::solve_gross_for_net(0.0, &input, &rules()).is_none());
+        assert!(super::solve_gross_for_net(-5.0, &input, &rules()).is_none());
     }
 
     #[test]
