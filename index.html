@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Aus Fin</title>
     <link data-trunk rel="rust" data-bin="aus-fin" />
     <style>
@@ -33,6 +33,7 @@
         color: var(--ink);
         background: var(--bg);
         font-variant-numeric: tabular-nums;
+        -webkit-tap-highlight-color: transparent;
       }
       ::selection {
         background: var(--accent);
@@ -190,6 +191,7 @@
         text-transform: uppercase;
         letter-spacing: 0.05em;
         cursor: pointer;
+        touch-action: manipulation;
       }
       button:hover {
         background: #ffc23d;
@@ -459,6 +461,10 @@
       .budget-table td {
         vertical-align: middle;
       }
+      /* Touch drag on the chart scrubs the readout; vertical swipes still scroll. */
+      .hover-capture {
+        touch-action: pan-y;
+      }
       .hover-guide {
         stroke: var(--muted);
         stroke-width: 1;
@@ -513,17 +519,74 @@
         background: var(--surface);
         z-index: 1;
       }
+      /* Touch devices: bigger hit areas, 16px fields so mobile browsers don't zoom on focus. */
+      @media (pointer: coarse) {
+        button {
+          min-height: 44px;
+          padding: 0.5rem 0.8rem;
+        }
+        input, select {
+          min-height: 44px;
+          font-size: 16px;
+        }
+        input[type="checkbox"] {
+          width: 1.35rem;
+          height: 1.35rem;
+          min-height: 0;
+        }
+        .tabs button {
+          min-height: 48px;
+        }
+        .info-tip {
+          padding: 0.25rem 0.4rem;
+        }
+      }
       @media (max-width: 720px) {
-        .site { padding: 0.75rem; }
+        .site {
+          padding: 0.75rem;
+          padding-left: calc(0.75rem + env(safe-area-inset-left));
+          padding-right: calc(0.75rem + env(safe-area-inset-right));
+          padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+        }
+        /* Single scrollable row of tabs instead of wrapping. */
         .tabs {
-          gap: 0.5rem;
-          padding: 0.6rem 0.6rem 0.25rem;
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .tabs::-webkit-scrollbar {
+          display: none;
+        }
+        .tabs button {
+          flex: 0 0 auto;
+          white-space: nowrap;
         }
         .workspace-body {
           padding: 0.75rem;
         }
         .mortgage-layout {
           grid-template-columns: 1fr;
+        }
+        .pie-wrap {
+          justify-content: center;
+        }
+        .pie-legend {
+          min-width: 0;
+          width: 100%;
+        }
+        .table-wrap, .spreadsheet-wrap {
+          max-height: 65vh;
+        }
+        /* Tooltips become a fixed bottom readout so they never overflow the screen. */
+        .info-tip-body {
+          position: fixed;
+          left: 0.75rem;
+          right: 0.75rem;
+          bottom: calc(0.75rem + env(safe-area-inset-bottom));
+          top: auto;
+          width: auto;
+          max-width: none;
+          z-index: 100;
         }
       }
     </style>

@@ -106,7 +106,7 @@ pub fn BudgetPage() -> impl IntoView {
                                                     </td>
                                                     <td>
                                                         <input
-                                                            type="number"
+                                                            type="number" inputmode="decimal"
                                                             min="0"
                                                             step="0.01"
                                                             prop:value=move || current().amount

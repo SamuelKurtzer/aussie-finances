@@ -76,7 +76,7 @@ pub fn SplitEditor(
                 <div>
                     <label>"Loan amount"</label>
                     <input
-                        type="number"
+                        type="number" inputmode="decimal"
                         min="0"
                         prop:value=move || {
                             portfolio
@@ -109,7 +109,7 @@ pub fn SplitEditor(
                 <div>
                     <label>"Rate (%)"</label>
                     <input
-                        type="number"
+                        type="number" inputmode="decimal"
                         min="0"
                         step="0.01"
                         prop:value=move || {
@@ -143,7 +143,7 @@ pub fn SplitEditor(
                 <div>
                     <label>"IO years"</label>
                     <input
-                        type="number"
+                        type="number" inputmode="decimal"
                         min="0"
                         step="0.5"
                         prop:value=move || {

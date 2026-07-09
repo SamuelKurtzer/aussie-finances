@@ -103,7 +103,7 @@ pub fn MortgagesPage() -> impl IntoView {
                     <label for="offset-top-up">"Offset top-up per period (AUD)"</label>
                     <input
                         id="offset-top-up"
-                        type="number"
+                        type="number" inputmode="decimal"
                         min="0"
                         step="1"
                         prop:value=move || portfolio.get().offset_top_up_per_period

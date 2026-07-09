@@ -57,7 +57,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                 <label for="income-amount">"Income amount (AUD)"</label>
                 <input
                     id="income-amount"
-                    type="number"
+                    type="number" inputmode="decimal"
                     min="0"
                     step="0.01"
                     prop:value=move || input.get().income_amount
@@ -93,7 +93,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     <label for="hours-per-week">"Hours per week"</label>
                     <input
                         id="hours-per-week"
-                        type="number"
+                        type="number" inputmode="decimal"
                         min="1"
                         max="100"
                         step="0.5"
@@ -106,7 +106,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     <label for="days-per-week">"Days per week"</label>
                     <input
                         id="days-per-week"
-                        type="number"
+                        type="number" inputmode="decimal"
                         min="1"
                         max="7"
                         step="0.5"
@@ -118,7 +118,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                 <label for="bonus">"Bonus (annual, AUD)"</label>
                 <input
                     id="bonus"
-                    type="number"
+                    type="number" inputmode="decimal"
                     min="0"
                     step="0.01"
                     prop:value=move || input.get().bonus_annual
@@ -128,7 +128,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                 <label for="overtime">"Overtime (annual, AUD)"</label>
                 <input
                     id="overtime"
-                    type="number"
+                    type="number" inputmode="decimal"
                     min="0"
                     step="0.01"
                     prop:value=move || input.get().overtime_annual
@@ -199,7 +199,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                 </label>
                 <input
                     id="super-rate"
-                    type="number"
+                    type="number" inputmode="decimal"
                     min="0"
                     max="25"
                     step="0.1"
@@ -224,7 +224,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     </label>
                     <input
                         id="extra-super"
-                        type="number"
+                        type="number" inputmode="decimal"
                         min="0"
                         step="0.01"
                         prop:value=move || input.get().extra_super_annual
@@ -250,7 +250,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                 </label>
                 <input
                     id="deductions"
-                    type="number"
+                    type="number" inputmode="decimal"
                     min="0"
                     step="0.01"
                     prop:value=move || input.get().deductions_annual
@@ -263,7 +263,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                 </label>
                 <input
                     id="sacrifice"
-                    type="number"
+                    type="number" inputmode="decimal"
                     min="0"
                     step="0.01"
                     prop:value=move || input.get().salary_sacrifice_amount
@@ -336,7 +336,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     <label for="dependants">"Dependent children"</label>
                     <input
                         id="dependants"
-                        type="number"
+                        type="number" inputmode="decimal"
                         min="0"
                         step="1"
                         prop:value=move || input.get().dependants
@@ -346,7 +346,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     <label for="family-income">"Combined family income (annual, AUD, optional)"</label>
                     <input
                         id="family-income"
-                        type="number"
+                        type="number" inputmode="decimal"
                         min="0"
                         step="0.01"
                         prop:value=move || input.get().family_income_annual.unwrap_or_default()
@@ -370,7 +370,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                 </label>
                 <input
                     id="rfb"
-                    type="number"
+                    type="number" inputmode="decimal"
                     min="0"
                     step="0.01"
                     prop:value=move || input.get().reportable_fringe_benefits_annual
@@ -383,7 +383,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                 </label>
                 <input
                     id="mls-override"
-                    type="number"
+                    type="number" inputmode="decimal"
                     min="0"
                     step="0.01"
                     prop:value=move || input

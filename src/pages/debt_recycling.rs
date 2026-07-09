@@ -75,7 +75,7 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                     <div>
                         <label>"Monthly redraw amount (AUD)"</label>
                         <input
-                            type="number"
+                            type="number" inputmode="decimal"
                             min="0"
                             step="1"
                             prop:value=move || strategy.get().monthly_redraw_aud
@@ -88,7 +88,7 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                     <div>
                         <label>"Emergency buffer (AUD)"</label>
                         <input
-                            type="number"
+                            type="number" inputmode="decimal"
                             min="0"
                             step="1"
                             prop:value=move || strategy.get().emergency_buffer_aud
@@ -101,7 +101,7 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                     <div>
                         <label>"Starting investment value (AUD)"</label>
                         <input
-                            type="number"
+                            type="number" inputmode="decimal"
                             min="0"
                             step="1"
                             prop:value=move || strategy.get().starting_investment_aud
@@ -117,7 +117,7 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                     <div>
                         <label>"Growth rate (%)"</label>
                         <input
-                            type="number"
+                            type="number" inputmode="decimal"
                             min="0"
                             step="0.01"
                             prop:value=move || strategy.get().growth_rate_percent
@@ -130,7 +130,7 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                     <div>
                         <label>"Dividend yield (%)"</label>
                         <input
-                            type="number"
+                            type="number" inputmode="decimal"
                             min="0"
                             step="0.01"
                             prop:value=move || strategy.get().dividend_yield_percent
@@ -143,7 +143,7 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                     <div>
                         <label>"Franking (%)"</label>
                         <input
-                            type="number"
+                            type="number" inputmode="decimal"
                             min="0"
                             max="100"
                             step="0.1"
@@ -160,7 +160,7 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                     <div>
                         <label>"Company tax rate (%)"</label>
                         <input
-                            type="number"
+                            type="number" inputmode="decimal"
                             min="0.01"
                             max="99.99"
                             step="0.01"

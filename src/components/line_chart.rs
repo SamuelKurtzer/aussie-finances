@@ -240,7 +240,7 @@ pub fn MultiLineChart(
             .into_view()
     };
 
-    let on_move = move |ev: leptos::ev::MouseEvent| {
+    let on_move = move |ev: leptos::ev::PointerEvent| {
         let rect = ev
             .target()
             .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
@@ -292,7 +292,9 @@ pub fn MultiLineChart(
                     height={chart_h}
                     fill="transparent"
                     pointer-events="all"
-                    on:mousemove=on_move
+                    class="hover-capture"
+                    on:pointerdown=on_move.clone()
+                    on:pointermove=on_move
                 />
                 {hover_line}
             </svg>

@@ -66,7 +66,7 @@ pub fn MortgageEditor(
                 <div>
                     <label>"Home value (AUD)"</label>
                     <input
-                        type="number"
+                        type="number" inputmode="decimal"
                         min="0"
                         step="1"
                         prop:value=move || {
@@ -94,7 +94,7 @@ pub fn MortgageEditor(
                 <div>
                     <label>"Offset balance (AUD)"</label>
                     <input
-                        type="number"
+                        type="number" inputmode="decimal"
                         min="0"
                         prop:value=move || {
                             portfolio
@@ -121,7 +121,7 @@ pub fn MortgageEditor(
                 <div>
                     <label>"Loan length (months)"</label>
                     <input
-                        type="number"
+                        type="number" inputmode="decimal"
                         min="1"
                         step="1"
                         prop:value=move || {
