@@ -19,6 +19,7 @@ pub fn ResultsTable(result: CalculatorOutput) -> impl IntoView {
             <p class="muted">
                 "Breakdown shown annually and per " {result.pay_frequency.to_string()} ". Rows that do not apply to you are hidden."
             </p>
+            <div class="table-scroll">
             <table>
                 <thead>
                     <tr>
@@ -163,6 +164,7 @@ pub fn ResultsTable(result: CalculatorOutput) -> impl IntoView {
                     </tr>
                 </tbody>
             </table>
+            </div>
             {(!result.warnings.is_empty()).then(|| view! {
                 <ul class="warning-list">
                     {result
@@ -176,6 +178,7 @@ pub fn ResultsTable(result: CalculatorOutput) -> impl IntoView {
             <p class="muted">
                 "How your taxable income fills each bracket. Only the income inside a bracket is taxed at that bracket's rate."
             </p>
+            <div class="table-scroll">
             <table>
                 <thead>
                     <tr>
@@ -209,6 +212,7 @@ pub fn ResultsTable(result: CalculatorOutput) -> impl IntoView {
                         .collect_view()}
                 </tbody>
             </table>
+            </div>
             </Collapsible>
             <details class="fine-print">
                 <summary>"Assumptions"</summary>

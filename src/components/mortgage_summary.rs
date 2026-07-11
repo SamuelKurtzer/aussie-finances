@@ -62,6 +62,7 @@ pub fn MortgageSummaryView(output: MortgagePortfolioOutput) -> impl IntoView {
             </div>
 
             <Collapsible title="By Mortgage">
+            <div class="table-scroll">
             <table>
                 <thead>
                     <tr>
@@ -90,6 +91,7 @@ pub fn MortgageSummaryView(output: MortgagePortfolioOutput) -> impl IntoView {
                         .collect_view()}
                 </tbody>
             </table>
+            </div>
             </Collapsible>
         </section>
     }

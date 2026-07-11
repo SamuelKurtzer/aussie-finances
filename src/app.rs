@@ -37,6 +37,17 @@ impl Tab {
             Tab::Spreadsheet => "Spreadsheet",
         }
     }
+
+    /// Compact labels so all five tabs fit one row on phone widths.
+    fn short_label(self) -> &'static str {
+        match self {
+            Tab::Income => "Income",
+            Tab::Mortgages => "Loans",
+            Tab::DebtRecycling => "Recycle",
+            Tab::Budget => "Budget",
+            Tab::Spreadsheet => "Sheet",
+        }
+    }
 }
 
 fn export_backup() {
@@ -175,7 +186,8 @@ pub fn App() -> impl IntoView {
                                     attr:aria-current=move || (active_tab.get() == tab).then_some("page")
                                     on:click=move |_| active_tab.set(tab)
                                 >
-                                    {tab.label()}
+                                    <span class="tab-label-full">{tab.label()}</span>
+                                    <span class="tab-label-short">{tab.short_label()}</span>
                                 </button>
                             }
                         })
