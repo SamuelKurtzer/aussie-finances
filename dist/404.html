@@ -8,8 +8,8 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     
 <script type="module">
-import init, * as bindings from '/aus-fin-5bbcbf9be5a98484.js';
-const wasm = await init({ module_or_path: '/aus-fin-5bbcbf9be5a98484_bg.wasm' });
+import init, * as bindings from '/aus-fin-10bdd3496c8dba7a.js';
+const wasm = await init({ module_or_path: '/aus-fin-10bdd3496c8dba7a_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -110,6 +110,9 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         font-weight: 400;
         letter-spacing: 0.06em;
       }
+      .tabs .tab-label-short {
+        display: none;
+      }
       .tabs button:hover {
         color: var(--ink);
         background: #1c1c17;
@@ -146,7 +149,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
       .income-layout {
         display: grid;
         gap: 1rem;
-        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
         align-items: start;
       }
       .panel {
@@ -158,7 +161,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
       .grid {
         display: grid;
         gap: 1rem;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
       }
       .field-group {
         padding: 0.35rem 0 1.1rem;
@@ -280,11 +283,17 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         color: var(--error);
         font-size: 0.85rem;
       }
+      /* minmax(0, …) lets the tracks shrink below their content's min width;
+         plain fr units would inherit wide grids/tables and blow out the page. */
       .mortgage-layout {
         display: grid;
         gap: 1rem;
-        grid-template-columns: 1.1fr 0.9fr;
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
         align-items: start;
+      }
+      /* Horizontal scroll for tables that sit outside a .table-wrap. */
+      .table-scroll {
+        overflow-x: auto;
       }
       .row-head {
         display: flex;
@@ -292,14 +301,16 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         justify-content: space-between;
         gap: 0.6rem;
       }
+      /* min(Npx, 100%) keeps auto-fit grids from forcing a wider-than-viewport
+         min-content width on narrow screens (one N px column per item). */
       .three-col {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
         gap: 0.7rem;
       }
       .four-col {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
         gap: 0.7rem;
       }
       .split-block {
@@ -310,7 +321,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
       }
       .summary-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
         gap: 0.5rem;
         margin-bottom: 0.8rem;
       }
@@ -604,31 +615,42 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
           padding-right: calc(0.75rem + env(safe-area-inset-right, 0px));
           padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
         }
-        /* Single scrollable row of tabs instead of wrapping. */
+        /* All five tabs share one fixed row using compact labels. */
         .tabs {
           flex-wrap: nowrap;
-          overflow-x: auto;
-          scrollbar-width: none;
-        }
-        .tabs::-webkit-scrollbar {
-          display: none;
         }
         .tabs button {
-          flex: 0 0 auto;
+          flex: 1 1 0;
+          min-width: 0;
           white-space: nowrap;
+          text-align: center;
+          padding: 0.5rem 0.15rem;
+          font-size: 0.72rem;
+          letter-spacing: 0.03em;
+        }
+        .tabs button:last-child {
+          border-right: 0;
+        }
+        .tabs .tab-label-full {
+          display: none;
+        }
+        .tabs .tab-label-short {
+          display: inline;
         }
         .workspace-body {
           padding: 0.75rem;
         }
         .mortgage-layout {
-          grid-template-columns: 1fr;
+          grid-template-columns: minmax(0, 1fr);
         }
         .pie-wrap {
           justify-content: center;
         }
         .pie-legend {
           min-width: 0;
-          width: 100%;
+          /* flex-basis beats width on flex items; 100% basis wraps the
+             legend onto its own full-width row below the pie. */
+          flex: 1 1 100%;
         }
         .table-wrap, .spreadsheet-wrap {
           max-height: 65vh;
@@ -646,6 +668,6 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         }
       }
     </style>
-  <link rel="modulepreload" href="/aus-fin-5bbcbf9be5a98484.js" crossorigin="anonymous" integrity="sha384-NV6iP3J+rmxpcazCJmqKYPk98Z2sn8oblUZyrzv+z9fehBp7eA1qG9TEMbA+wCsg"><link rel="preload" href="/aus-fin-5bbcbf9be5a98484_bg.wasm" crossorigin="anonymous" integrity="sha384-wLlKZZ9N0QFAuvbvXmSdJFI1P3btatkCbZZToRGi/2zOrMEaUATyjgRz/D9HgviO" as="fetch" type="application/wasm"></head>
+  <link rel="modulepreload" href="/aus-fin-10bdd3496c8dba7a.js" crossorigin="anonymous" integrity="sha384-NV6iP3J+rmxpcazCJmqKYPk98Z2sn8oblUZyrzv+z9fehBp7eA1qG9TEMbA+wCsg"><link rel="preload" href="/aus-fin-10bdd3496c8dba7a_bg.wasm" crossorigin="anonymous" integrity="sha384-0pxgnhyawxagS6tYz0Pw5v0kRW2sMaiW7qLg6rIiUdIbmJSb+VHxT59RNlInce/h" as="fetch" type="application/wasm"></head>
   <body></body>
 </html>
