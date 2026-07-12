@@ -37,7 +37,7 @@ pub fn load_household_outgoings() -> (f64, f64) {
         .debt_recycle
         .as_ref()
         .filter(|dr| dr.enabled)
-        .map(|dr| dr.monthly_redraw_aud * 12.0)
+        .map(|dr| dr.redraw_amount_aud * (12.0 / dr.redraw_cadence.interval_months()))
         .unwrap_or(0.0);
 
     let income_ctx = load_raw_from_storage(INCOME_STORAGE_KEY)

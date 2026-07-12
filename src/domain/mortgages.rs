@@ -42,6 +42,34 @@ impl From<PayFrequency> for RepaymentCadence {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RedrawCadence {
+    #[default]
+    Monthly,
+    Quarterly,
+    Yearly,
+}
+
+impl RedrawCadence {
+    pub fn interval_months(self) -> f64 {
+        match self {
+            Self::Monthly => 1.0,
+            Self::Quarterly => 3.0,
+            Self::Yearly => 12.0,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Monthly => "Monthly",
+            Self::Quarterly => "Quarterly",
+            Self::Yearly => "Yearly",
+        }
+    }
+
+    pub const ALL: [RedrawCadence; 3] = [Self::Monthly, Self::Quarterly, Self::Yearly];
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RateType {
     Fixed,
@@ -97,7 +125,11 @@ pub struct MortgagePortfolioInput {
 pub struct DebtRecycleInput {
     pub enabled: bool,
     pub mortgage_id: u32,
-    pub monthly_redraw_aud: f64,
+    /// Amount drawn per redraw event; the alias keeps pre-cadence saved
+    /// data (monthly-only era) importable.
+    #[serde(alias = "monthly_redraw_aud")]
+    pub redraw_amount_aud: f64,
+    pub redraw_cadence: RedrawCadence,
     pub emergency_buffer_aud: f64,
     pub growth_rate_percent: f64,
     pub dividend_yield_percent: f64,
@@ -111,7 +143,8 @@ impl Default for DebtRecycleInput {
         Self {
             enabled: false,
             mortgage_id: 1,
-            monthly_redraw_aud: 2_000.0,
+            redraw_amount_aud: 2_000.0,
+            redraw_cadence: RedrawCadence::Monthly,
             emergency_buffer_aud: 20_000.0,
             growth_rate_percent: 6.0,
             dividend_yield_percent: 4.0,
@@ -292,7 +325,8 @@ struct WorkingMortgage {
 #[derive(Clone, Copy)]
 struct ProjectionDebtRecycleConfig {
     mortgage_index: usize,
-    monthly_redraw: f64,
+    redraw_amount: f64,
+    redraw_interval_months: f64,
     emergency_buffer: f64,
     growth_rate_per_period: f64,
     dividend_rate_per_period: f64,
@@ -310,6 +344,7 @@ struct ProjectionDebtRecycleState {
     total_deductible_interest: f64,
     recycled_principal_repaid: f64,
     investment_value: f64,
+    income_since_last_draw: f64,
     capacity_exhausted_warned: bool,
     warnings: Vec<String>,
 }
@@ -560,7 +595,8 @@ fn build_projection_debt_recycle_config(
 
     Some(ProjectionDebtRecycleConfig {
         mortgage_index,
-        monthly_redraw: debt_recycle.monthly_redraw_aud,
+        redraw_amount: debt_recycle.redraw_amount_aud,
+        redraw_interval_months: debt_recycle.redraw_cadence.interval_months(),
         emergency_buffer: debt_recycle.emergency_buffer_aud,
         growth_rate_per_period,
         dividend_rate_per_period,
@@ -596,6 +632,7 @@ fn run_projection(
         total_deductible_interest: 0.0,
         recycled_principal_repaid: 0.0,
         investment_value: config.starting_investment,
+        income_since_last_draw: 0.0,
         capacity_exhausted_warned: false,
         warnings: Vec::new(),
     });
@@ -621,19 +658,25 @@ fn run_projection(
             target_mortgage.offset_balance += dividend_cash + franking_credit;
             state.total_dividends += dividend_cash;
             state.total_franking_credits += franking_credit;
+            state.income_since_last_draw += dividend_cash + franking_credit;
 
             let offset_before = target_mortgage.offset_balance;
             let mut redraw_amount = 0.0;
 
-            let is_new_month = (period as f64 * months_per_period).floor()
-                > ((period - 1) as f64 * months_per_period).floor();
-            if is_new_month {
+            // A redraw fires each time a whole cadence interval (month,
+            // quarter, or year) of elapsed time has completed.
+            let interval = state.config.redraw_interval_months;
+            let is_new_interval = (period as f64 * months_per_period / interval).floor()
+                > ((period - 1) as f64 * months_per_period / interval).floor();
+            if is_new_interval {
                 let available_offset =
                     (target_mortgage.offset_balance - state.config.emergency_buffer).max(0.0);
                 let capacity = redraw_capacity(target_mortgage);
-                let requested = state
-                    .config
-                    .monthly_redraw
+                // Recycle strategy income (dividends + franking) on top of
+                // the configured base amount, so the offset converges to the
+                // emergency buffer instead of accumulating investment income;
+                // the redraw grows over time as that income compounds.
+                let requested = (state.config.redraw_amount + state.income_since_last_draw)
                     .min(available_offset)
                     .min(capacity);
                 if requested > 0.0 && !balance_is_zero(requested) {
@@ -643,6 +686,7 @@ fn run_projection(
                     state.total_drawn += redraw_amount;
                     state.draw_count += 1;
                 }
+                state.income_since_last_draw = 0.0;
                 if balance_is_zero(capacity) && !state.capacity_exhausted_warned {
                     state.capacity_exhausted_warned = true;
                     state.warnings.push(format!(
@@ -922,11 +966,10 @@ pub fn validate_portfolio_input(input: &MortgagePortfolioInput) -> Vec<Validatio
     }
 
     if let Some(debt_recycle) = input.debt_recycle.as_ref().filter(|d| d.enabled) {
-        if debt_recycle.monthly_redraw_aud <= 0.0 {
+        if debt_recycle.redraw_amount_aud <= 0.0 {
             issues.push(ValidationIssue {
-                field: "debt_recycle.monthly_redraw_aud",
-                message: "Debt recycle monthly redraw amount must be greater than zero."
-                    .to_string(),
+                field: "debt_recycle.redraw_amount_aud",
+                message: "Debt recycle redraw amount must be greater than zero.".to_string(),
             });
         }
         if debt_recycle.emergency_buffer_aud < 0.0 {
@@ -1281,7 +1324,8 @@ mod tests {
         DebtRecycleInput {
             enabled: true,
             mortgage_id,
-            monthly_redraw_aud: 2_000.0,
+            redraw_amount_aud: 2_000.0,
+            redraw_cadence: RedrawCadence::Monthly,
             emergency_buffer_aud: 5_000.0,
             growth_rate_percent: 0.0,
             dividend_yield_percent: 0.0,
@@ -1302,6 +1346,34 @@ mod tests {
         assert_eq!(recycle.summary.draw_count, 8);
         assert_relative_eq!(recycle.summary.total_drawn, 15_000.0, epsilon = 0.01);
         assert!(recycle.summary.ending_investment_value >= 15_000.0 - 0.01);
+    }
+
+    #[test]
+    fn offset_stays_pinned_to_buffer_once_reached() {
+        let mut input = base_input();
+        input.repayment_cadence = RepaymentCadence::Monthly;
+        let mut recycle = recycle_input(input.mortgages[0].id);
+        recycle.dividend_yield_percent = 6.0;
+        recycle.starting_investment_aud = 100_000.0;
+        input.debt_recycle = Some(recycle);
+
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        let recycle = out.debt_recycle.expect("expected debt recycle output");
+
+        // Investment income is recycled on top of the base redraw, so after
+        // the initial surplus is drawn down the offset sits at the buffer
+        // right after every redraw instead of accumulating dividends.
+        let draw_events: Vec<_> = recycle
+            .periods
+            .iter()
+            .filter(|p| p.redraw_amount > 0.0)
+            .collect();
+        assert!(draw_events.len() > 24);
+        for event in &draw_events[12..24] {
+            assert_relative_eq!(event.offset_after, 5_000.0, epsilon = 0.01);
+        }
+        // And the redraw itself grows as the investment income compounds.
+        assert!(draw_events[23].redraw_amount > draw_events[12].redraw_amount);
     }
 
     #[test]
@@ -1334,7 +1406,7 @@ mod tests {
         input.repayment_cadence = RepaymentCadence::Fortnightly;
         input.mortgages[0].term_months = 12;
         let mut recycle = recycle_input(input.mortgages[0].id);
-        recycle.monthly_redraw_aud = 1_000.0;
+        recycle.redraw_amount_aud = 1_000.0;
         recycle.emergency_buffer_aud = 0.0;
         input.debt_recycle = Some(recycle);
 
@@ -1342,6 +1414,76 @@ mod tests {
         let recycle = out.debt_recycle.expect("expected debt recycle output");
         // 26 fortnights cover 12 month boundaries.
         assert_eq!(recycle.summary.draw_count, 12);
+    }
+
+    #[test]
+    fn quarterly_redraw_fires_once_per_quarter() {
+        let mut input = base_input();
+        input.repayment_cadence = RepaymentCadence::Monthly;
+        input.mortgages[0].term_months = 12;
+        let mut recycle = recycle_input(input.mortgages[0].id);
+        recycle.redraw_amount_aud = 1_000.0;
+        recycle.redraw_cadence = RedrawCadence::Quarterly;
+        recycle.emergency_buffer_aud = 0.0;
+        input.debt_recycle = Some(recycle);
+
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        let recycle = out.debt_recycle.expect("expected debt recycle output");
+        assert_eq!(recycle.summary.draw_count, 4);
+        // Draws land at the end of each quarter (months 3, 6, 9, 12).
+        let draw_periods: Vec<usize> = recycle
+            .periods
+            .iter()
+            .filter(|p| p.redraw_amount > 0.0)
+            .map(|p| p.period_index)
+            .collect();
+        assert_eq!(draw_periods, vec![3, 6, 9, 12]);
+    }
+
+    #[test]
+    fn quarterly_redraw_follows_quarter_boundaries_on_fortnightly_cadence() {
+        let mut input = base_input();
+        input.repayment_cadence = RepaymentCadence::Fortnightly;
+        input.mortgages[0].term_months = 12;
+        let mut recycle = recycle_input(input.mortgages[0].id);
+        recycle.redraw_amount_aud = 1_000.0;
+        recycle.redraw_cadence = RedrawCadence::Quarterly;
+        recycle.emergency_buffer_aud = 0.0;
+        input.debt_recycle = Some(recycle);
+
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        let recycle = out.debt_recycle.expect("expected debt recycle output");
+        // 26 fortnights cover 4 quarter boundaries.
+        assert_eq!(recycle.summary.draw_count, 4);
+    }
+
+    #[test]
+    fn yearly_redraw_fires_once_per_year() {
+        let mut input = base_input();
+        input.repayment_cadence = RepaymentCadence::Monthly;
+        input.mortgages[0].term_months = 36;
+        let mut recycle = recycle_input(input.mortgages[0].id);
+        recycle.redraw_amount_aud = 1_000.0;
+        recycle.redraw_cadence = RedrawCadence::Yearly;
+        recycle.emergency_buffer_aud = 0.0;
+        input.debt_recycle = Some(recycle);
+
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        let recycle = out.debt_recycle.expect("expected debt recycle output");
+        assert_eq!(recycle.summary.draw_count, 3);
+    }
+
+    #[test]
+    fn saved_data_from_monthly_only_era_still_loads() {
+        let json = r#"{
+            "enabled": true,
+            "mortgage_id": 1,
+            "monthly_redraw_aud": 1500.0,
+            "emergency_buffer_aud": 10000.0
+        }"#;
+        let parsed: DebtRecycleInput = serde_json::from_str(json).unwrap();
+        assert_relative_eq!(parsed.redraw_amount_aud, 1_500.0);
+        assert_eq!(parsed.redraw_cadence, RedrawCadence::Monthly);
     }
 
     #[test]
@@ -1404,13 +1546,13 @@ mod tests {
     fn validation_requires_positive_monthly_redraw() {
         let mut input = base_input();
         let mut recycle = recycle_input(input.mortgages[0].id);
-        recycle.monthly_redraw_aud = 0.0;
+        recycle.redraw_amount_aud = 0.0;
         input.debt_recycle = Some(recycle);
 
         let issues = validate_portfolio_input(&input);
         assert!(issues
             .iter()
-            .any(|i| i.field == "debt_recycle.monthly_redraw_aud"));
+            .any(|i| i.field == "debt_recycle.redraw_amount_aud"));
     }
 
     #[test]

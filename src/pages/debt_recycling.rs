@@ -3,11 +3,13 @@ use leptos::*;
 use crate::components::collapsible::Collapsible;
 use crate::components::line_chart::{ChartLine, MultiLineChart};
 use crate::domain::mortgages::{
-    calculate_mortgage_portfolio, DebtRecycleInput, MortgagePortfolioInput, MortgageValidationError,
+    calculate_mortgage_portfolio, load_income_context_from_saved_input, DebtRecycleInput,
+    MortgagePortfolioInput, MortgageValidationError, RedrawCadence,
 };
 use crate::formatting::{chart_colors, fmt_int_commas, fmt_money};
 use crate::storage::{
-    load_from_storage, save_to_storage, DEBT_RECYCLE_STORAGE_KEY, MORTGAGE_STORAGE_KEY,
+    load_from_storage, load_raw_from_storage, save_to_storage, DEBT_RECYCLE_STORAGE_KEY,
+    INCOME_STORAGE_KEY, MORTGAGE_STORAGE_KEY,
 };
 
 #[component]
@@ -26,14 +28,19 @@ pub fn DebtRecyclingPage() -> impl IntoView {
         let mut recycle = strategy.get();
         recycle.normalize_mortgage_selection(&portfolio);
         portfolio.debt_recycle = Some(recycle);
-        calculate_mortgage_portfolio(&portfolio, None)
+        let income_context = load_raw_from_storage(INCOME_STORAGE_KEY)
+            .as_deref()
+            .and_then(load_income_context_from_saved_input);
+        calculate_mortgage_portfolio(&portfolio, income_context.as_ref())
     });
 
     view! {
         <section>
             <h2>"Debt Recycling"</h2>
             <p class="muted">
-                "Each month, pay a fixed amount from your offset into the loan and redraw it to invest (non-split redraw). \
+                "Each redraw period, pay your base amount plus any investment income received since the last redraw \
+                from your offset into the loan and redraw it to invest (non-split redraw), keeping the offset at your \
+                emergency buffer. \
                 The loan becomes mixed-purpose: interest is apportioned pro-rata between deductible and non-deductible \
                 portions, and principal repayments erode the deductible share (contamination)."
             </p>
@@ -73,17 +80,40 @@ pub fn DebtRecyclingPage() -> impl IntoView {
 
                 <div class="three-col">
                     <div>
-                        <label>"Monthly redraw amount (AUD)"</label>
+                        <label>"Redraw amount (AUD)"</label>
                         <input
                             type="number" inputmode="decimal"
                             min="0"
                             step="1"
-                            prop:value=move || strategy.get().monthly_redraw_aud
+                            prop:value=move || strategy.get().redraw_amount_aud
                             on:input=move |ev| {
                                 let value = event_target_value(&ev).parse::<f64>().unwrap_or(0.0).max(0.0);
-                                strategy.update(|s| s.monthly_redraw_aud = value);
+                                strategy.update(|s| s.redraw_amount_aud = value);
                             }
                         />
+                    </div>
+                    <div>
+                        <label>"Redraw cadence"</label>
+                        <select on:change=move |ev| {
+                            let value = event_target_value(&ev);
+                            let cadence = RedrawCadence::ALL
+                                .into_iter()
+                                .find(|c| c.label() == value)
+                                .unwrap_or_default();
+                            strategy.update(|s| s.redraw_cadence = cadence);
+                        }>
+                            {RedrawCadence::ALL
+                                .into_iter()
+                                .map(|c| view! {
+                                    <option
+                                        value=c.label()
+                                        selected=move || strategy.get().redraw_cadence == c
+                                    >
+                                        {c.label()}
+                                    </option>
+                                })
+                                .collect_view()}
+                        </select>
                     </div>
                     <div>
                         <label>"Emergency buffer (AUD)"</label>
@@ -284,7 +314,7 @@ pub fn DebtRecyclingPage() -> impl IntoView {
                                     }}
                                     </Collapsible>
 
-                                    <Collapsible title="Monthly Redraw Events" closed=true>
+                                    <Collapsible title="Redraw Events" closed=true>
                                     <div class="table-wrap">
                                         <table>
                                             <thead>
