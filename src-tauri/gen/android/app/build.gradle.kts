@@ -13,6 +13,17 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// Release signing: env vars (CI) take priority over gitignored key.properties (local).
+// Unsigned release builds still work when neither is present.
+val keyProperties = Properties().apply {
+    val propFile = file("key.properties")
+    if (propFile.exists()) {
+        propFile.inputStream().use { load(it) }
+    }
+}
+val releaseStorePath: String? =
+    System.getenv("ANDROID_KEYSTORE_PATH") ?: keyProperties.getProperty("storeFile")
+
 android {
     compileSdk = 36
     namespace = "com.samuelkurtzer.ausfin"
@@ -23,6 +34,19 @@ android {
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+    }
+    signingConfigs {
+        create("release") {
+            if (releaseStorePath != null) {
+                storeFile = file(releaseStorePath)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                    ?: keyProperties.getProperty("storePassword")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                    ?: keyProperties.getProperty("keyAlias")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                    ?: keyProperties.getProperty("keyPassword")
+            }
+        }
     }
     buildTypes {
         getByName("debug") {
@@ -38,6 +62,9 @@ android {
             }
         }
         getByName("release") {
+            if (releaseStorePath != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }

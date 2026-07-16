@@ -5,8 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Aus Fin</title>
     <link data-trunk rel="copy-file" href="static/favicon.png" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link data-trunk rel="copy-file" href="static/manifest.webmanifest" />
+    <link data-trunk rel="copy-file" href="static/sw.js" />
+    <link data-trunk rel="copy-file" href="static/icon-192.png" />
+    <link data-trunk rel="copy-file" href="static/icon-512.png" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#0b0b09" />
     <link data-trunk rel="rust" data-bin="aus-fin" data-wasm-opt="z" />
+    <script>
+      // Web only: Tauri shells (desktop and Android) ship their own assets,
+      // and Android serves over http://tauri.localhost so the protocol check
+      // alone would not exclude it.
+      if (
+        "serviceWorker" in navigator &&
+        !window.__TAURI_INTERNALS__ &&
+        location.protocol.startsWith("http")
+      ) {
+        window.addEventListener("load", () =>
+          navigator.serviceWorker.register("sw.js")
+        );
+      }
+    </script>
     <style>
       :root {
         --bg: #0b0b09;
