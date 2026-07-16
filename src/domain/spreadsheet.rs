@@ -1,6 +1,4 @@
-use crate::domain::mortgages::{
-    AmortizationRow, DebtRecyclePeriod, MortgagePortfolioOutput,
-};
+use crate::domain::mortgages::{AmortizationRow, DebtRecyclePeriod, MortgagePortfolioOutput};
 use crate::domain::types::CalculatorOutput;
 
 #[derive(Clone, PartialEq)]
@@ -34,14 +32,16 @@ pub fn build_spreadsheet(
     income: Option<&CalculatorOutput>,
     mortgage: Option<&MortgagePortfolioOutput>,
 ) -> Vec<SpreadsheetRow> {
-    let monthly_mortgage = mortgage.map(|m| build_monthly_mortgage_rows(m));
+    let monthly_mortgage = mortgage.map(build_monthly_mortgage_rows);
     let monthly_dr = mortgage
         .and_then(|m| m.debt_recycle.as_ref())
         .map(|dr| build_monthly_dr_rows(&dr.periods, mortgage.unwrap()));
 
     let mortgage_months = monthly_mortgage.as_ref().map(|v| v.len()).unwrap_or(0);
     let dr_months = monthly_dr.as_ref().map(|v| v.len()).unwrap_or(0);
-    let max_months = mortgage_months.max(dr_months).max(if income.is_some() { 1 } else { 0 });
+    let max_months = mortgage_months
+        .max(dr_months)
+        .max(if income.is_some() { 1 } else { 0 });
 
     if max_months == 0 {
         return Vec::new();
@@ -62,9 +62,7 @@ pub fn build_spreadsheet(
 
     (1..=max_months)
         .map(|month| {
-            let mort = monthly_mortgage
-                .as_ref()
-                .and_then(|v| v.get(month - 1));
+            let mort = monthly_mortgage.as_ref().and_then(|v| v.get(month - 1));
             let dr = monthly_dr.as_ref().and_then(|v| v.get(month - 1));
 
             SpreadsheetRow {
@@ -123,7 +121,10 @@ pub fn map_periods_to_months<T: Clone>(rows: &[T], period_months: &[f64]) -> Vec
 }
 
 fn build_monthly_mortgage_rows(output: &MortgagePortfolioOutput) -> Vec<AmortizationRow> {
-    map_periods_to_months(&output.amortization_rows, &output.chart_series.period_months)
+    map_periods_to_months(
+        &output.amortization_rows,
+        &output.chart_series.period_months,
+    )
 }
 
 fn build_monthly_dr_rows(
@@ -169,9 +170,8 @@ pub fn rows_to_csv(rows: &[SpreadsheetRow]) -> String {
 
 fn csv_field(out: &mut String, val: Option<f64>) {
     out.push(',');
-    match val {
-        Some(v) => out.push_str(&format!("{:.2}", v)),
-        None => {}
+    if let Some(v) = val {
+        out.push_str(&format!("{:.2}", v));
     }
 }
 

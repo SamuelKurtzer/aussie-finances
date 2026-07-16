@@ -125,14 +125,11 @@ pub fn App() -> impl IntoView {
     create_effect(move |_| {
         active_tab.track();
         #[cfg(target_arch = "wasm32")]
-        if let Some(button) = web_sys::window()
-            .and_then(|w| w.document())
-            .and_then(|d| {
-                d.query_selector(".tabs button[aria-current='page']")
-                    .ok()
-                    .flatten()
-            })
-        {
+        if let Some(button) = web_sys::window().and_then(|w| w.document()).and_then(|d| {
+            d.query_selector(".tabs button[aria-current='page']")
+                .ok()
+                .flatten()
+        }) {
             let options = web_sys::ScrollIntoViewOptions::new();
             options.set_block(web_sys::ScrollLogicalPosition::Nearest);
             options.set_inline(web_sys::ScrollLogicalPosition::Nearest);

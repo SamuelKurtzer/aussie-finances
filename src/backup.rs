@@ -19,6 +19,7 @@ pub fn export_backup_json() -> String {
 /// Restore known keys from a backup document. Returns how many keys were
 /// applied. Unknown keys are ignored; malformed payloads are rejected
 /// before anything is written so a bad file can't half-apply.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub fn apply_backup(text: &str) -> Result<usize, String> {
     let value: serde_json::Value =
         serde_json::from_str(text).map_err(|_| "file is not valid JSON".to_string())?;

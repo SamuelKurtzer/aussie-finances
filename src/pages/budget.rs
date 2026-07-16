@@ -19,9 +19,8 @@ fn load_monthly_net_income() -> Option<f64> {
 
 #[component]
 pub fn BudgetPage() -> impl IntoView {
-    let budget = create_rw_signal(
-        load_from_storage::<BudgetInput>(BUDGET_STORAGE_KEY).unwrap_or_default(),
-    );
+    let budget =
+        create_rw_signal(load_from_storage::<BudgetInput>(BUDGET_STORAGE_KEY).unwrap_or_default());
 
     create_effect(move |_| {
         save_to_storage(BUDGET_STORAGE_KEY, &budget.get());

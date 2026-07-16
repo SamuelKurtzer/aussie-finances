@@ -19,11 +19,18 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
       - name: Run tests
         run: cargo test -p aus-fin
       - name: Install trunk
-        uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall -y trunk
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk@0.21.14
+      - name: Ensure cargo bin on PATH
+        run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - name: Build web release
         run: trunk build --release
 
@@ -42,8 +49,12 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall -y trunk tauri-cli
+      - name: Install trunk and tauri-cli
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk@0.21.14,tauri-cli@2.11.4
+      - name: Ensure cargo bin on PATH
+        run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - name: Build desktop bundles
         run: cargo tauri build
       - uses: actions/upload-artifact@v4
@@ -70,8 +81,12 @@ jobs:
         with:
           targets: wasm32-unknown-unknown,aarch64-linux-android
       - uses: Swatinem/rust-cache@v2
-      - uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall -y trunk tauri-cli
+      - name: Install trunk and tauri-cli
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk@0.21.14,tauri-cli@2.11.4
+      - name: Ensure cargo bin on PATH
+        run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - name: Build debug APK (debug-signed, installable)
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018

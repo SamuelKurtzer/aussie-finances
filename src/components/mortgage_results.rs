@@ -10,20 +10,16 @@ use crate::domain::types::DomainError;
 use crate::formatting::chart_colors;
 
 #[component]
-pub fn MortgageResults(
-    result: Result<MortgagePortfolioOutput, DomainError>,
-) -> impl IntoView {
+pub fn MortgageResults(result: Result<MortgagePortfolioOutput, DomainError>) -> impl IntoView {
     match result {
         Ok(output) => {
             let warnings = output.warnings.clone();
             let balance = output.chart_series.total_balance.clone();
             let worst_balance = output.chart_series.worst_case_total_balance.clone();
             let total_repaid = output.chart_series.cumulative_repayment.clone();
-            let worst_total_repaid =
-                output.chart_series.worst_case_cumulative_repayment.clone();
+            let worst_total_repaid = output.chart_series.worst_case_cumulative_repayment.clone();
             let interest = output.chart_series.cumulative_interest.clone();
-            let worst_interest =
-                output.chart_series.worst_case_cumulative_interest.clone();
+            let worst_interest = output.chart_series.worst_case_cumulative_interest.clone();
             let offset = output.chart_series.offset_balance.clone();
             let period_months = output.chart_series.period_months.clone();
             let rows = output.amortization_rows.clone();
@@ -47,22 +43,17 @@ pub fn MortgageResults(
             view! {
                 <section>
                     <MortgageSummaryView output=output />
-                    {if warnings.is_empty() {
-                        view! { <></> }.into_view()
-                    } else {
-                        view! {
-                            <section>
-                                <h3>"Warnings"</h3>
-                                <ul>
-                                    {warnings
-                                        .iter()
-                                        .map(|w| view! { <li class="muted">{w}</li> })
-                                        .collect_view()}
-                                </ul>
-                            </section>
-                        }
-                            .into_view()
-                    }}
+                    {(!warnings.is_empty()).then(|| view! {
+                        <section>
+                            <h3>"Warnings"</h3>
+                            <ul>
+                                {warnings
+                                    .iter()
+                                    .map(|w| view! { <li class="muted">{w}</li> })
+                                    .collect_view()}
+                            </ul>
+                        </section>
+                    })}
                     <section class="chart-grid">
                         <MultiLineChart
                             title="Mortgage Trends Over Time".to_string()
@@ -185,23 +176,21 @@ pub fn MortgageResults(
                     <AmortizationTable rows=rows period_months=period_months />
                 </section>
             }
-                .into_view()
+            .into_view()
         }
-        Err(MortgageValidationError::Validation(issues)) => {
-            view! {
-                <section>
-                    <h3>"Validation issues"</h3>
-                    <ul>
-                        {issues
-                            .iter()
-                            .map(|i| {
-                                view! { <li class="error">{format!("{}: {}", i.field, i.message)}</li> }
-                            })
-                            .collect_view()}
-                    </ul>
-                </section>
-            }
-                .into_view()
+        Err(MortgageValidationError::Validation(issues)) => view! {
+            <section>
+                <h3>"Validation issues"</h3>
+                <ul>
+                    {issues
+                        .iter()
+                        .map(|i| {
+                            view! { <li class="error">{format!("{}: {}", i.field, i.message)}</li> }
+                        })
+                        .collect_view()}
+                </ul>
+            </section>
         }
+        .into_view(),
     }
 }

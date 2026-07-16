@@ -6,13 +6,13 @@ use crate::components::income_charts::{RateCurveChart, RatePoint, TaxPieChart};
 use crate::components::results_table::ResultsTable;
 use crate::domain::budget::BudgetInput;
 use crate::domain::calculator::{calculate_income, solve_gross_for_net};
-use crate::formatting::fmt_money;
 use crate::domain::mortgages::{
     calculate_mortgage_portfolio, first_year_repayments, load_income_context_from_saved_input,
     DebtRecycleInput, MortgagePortfolioInput,
 };
 use crate::domain::tax_rules::TaxRules;
 use crate::domain::types::{CalculatorError, CalculatorInput, IncomeUnit, PayFrequency};
+use crate::formatting::fmt_money;
 use crate::storage::{
     load_from_storage, load_raw_from_storage, save_to_storage, BUDGET_STORAGE_KEY,
     DEBT_RECYCLE_STORAGE_KEY, INCOME_STORAGE_KEY, MORTGAGE_STORAGE_KEY,

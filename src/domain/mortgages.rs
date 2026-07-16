@@ -546,9 +546,7 @@ fn build_projection_debt_recycle_config(
     cadence: RepaymentCadence,
     warnings: &mut Vec<String>,
 ) -> Option<ProjectionDebtRecycleConfig> {
-    let Some(debt_recycle) = input.debt_recycle.as_ref() else {
-        return None;
-    };
+    let debt_recycle = input.debt_recycle.as_ref()?;
     if !debt_recycle.enabled {
         return None;
     }
@@ -573,9 +571,10 @@ fn build_projection_debt_recycle_config(
         return None;
     };
 
-    let has_eligible_split = mortgage_input.splits.iter().any(|s| {
-        s.rate_type == RateType::Variable && s.loan_purpose == LoanPurpose::OwnerOccupied
-    });
+    let has_eligible_split = mortgage_input
+        .splits
+        .iter()
+        .any(|s| s.rate_type == RateType::Variable && s.loan_purpose == LoanPurpose::OwnerOccupied);
     if !has_eligible_split {
         warnings.push(format!(
             "Debt recycle strategy skipped: {} has no variable owner-occupied split to pay into and redraw from.",
@@ -769,8 +768,7 @@ fn run_projection(
                     let recycled_share = (split.recycled_balance / split.balance).min(1.0);
                     period_deductible_interest += interest * recycled_share;
                     let recycled_principal = principal * recycled_share;
-                    split.recycled_balance =
-                        (split.recycled_balance - recycled_principal).max(0.0);
+                    split.recycled_balance = (split.recycled_balance - recycled_principal).max(0.0);
                     period_recycled_principal += recycled_principal;
                 }
 
@@ -787,8 +785,13 @@ fn run_projection(
             state.investment_value *= 1.0 + state.config.growth_rate_per_period;
             state.total_deductible_interest += period_deductible_interest;
             state.recycled_principal_repaid += period_recycled_principal;
-            if let Some((redraw_amount, dividend_cash, franking_credit, offset_before, offset_after)) =
-                recycle_snapshot
+            if let Some((
+                redraw_amount,
+                dividend_cash,
+                franking_credit,
+                offset_before,
+                offset_after,
+            )) = recycle_snapshot
             {
                 state.periods.push(DebtRecyclePeriod {
                     period_index: period,
@@ -1194,11 +1197,7 @@ pub fn first_year_repayments(rows: &[AmortizationRow], period_months: &[f64]) ->
 
 impl DebtRecycleInput {
     pub fn normalize_mortgage_selection(&mut self, portfolio: &MortgagePortfolioInput) {
-        if portfolio
-            .mortgages
-            .iter()
-            .any(|m| m.id == self.mortgage_id)
-        {
+        if portfolio.mortgages.iter().any(|m| m.id == self.mortgage_id) {
             return;
         }
         self.mortgage_id = portfolio.mortgages.first().map(|m| m.id).unwrap_or(0);
@@ -1239,8 +1238,7 @@ mod tests {
     fn first_year_repayments_annualises_first_twelve_months() {
         let input = base_input();
         let out = calculate_mortgage_portfolio(&input, None).unwrap();
-        let annual =
-            first_year_repayments(&out.amortization_rows, &out.chart_series.period_months);
+        let annual = first_year_repayments(&out.amortization_rows, &out.chart_series.period_months);
         let per_period = out.amortization_rows[0].repayment;
         let periods_per_year = input.repayment_cadence.periods_per_year() as f64;
         assert_relative_eq!(annual, per_period * periods_per_year, max_relative = 0.01);

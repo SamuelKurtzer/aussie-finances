@@ -1,9 +1,7 @@
 use leptos::*;
 
 use crate::components::split_editor::SplitEditor;
-use crate::domain::mortgages::{
-    MortgagePortfolioInput, SplitInput, MAX_SPLITS_PER_MORTGAGE,
-};
+use crate::domain::mortgages::{MortgagePortfolioInput, SplitInput, MAX_SPLITS_PER_MORTGAGE};
 
 #[component]
 pub fn MortgageEditor(
@@ -159,10 +157,11 @@ pub fn MortgageEditor(
                                     return;
                                 }
                                 let id = m.next_split_id();
-                                let mut split = SplitInput::default();
-                                split.id = id;
-                                split.name = format!("Split {}", id);
-                                m.splits.push(split);
+                                m.splits.push(SplitInput {
+                                    id,
+                                    name: format!("Split {}", id),
+                                    ..Default::default()
+                                });
                             }
                         })
                     }

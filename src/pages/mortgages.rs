@@ -34,31 +34,27 @@ pub fn MortgagesPage() -> impl IntoView {
         calculate_mortgage_portfolio(&input, income.as_ref())
     });
 
-    let add_mortgage = {
-        let portfolio = portfolio;
-        move |_| {
-            portfolio.update(|p| {
-                if p.mortgages.len() >= MAX_MORTGAGES {
-                    return;
-                }
-                let id = p.next_mortgage_id();
-                let mut mortgage = MortgageInput::default();
-                mortgage.id = id;
-                mortgage.name = format!("Mortgage {}", id);
-                for (idx, split) in mortgage.splits.iter_mut().enumerate() {
-                    split.id = (idx + 1) as u32;
-                }
-                p.mortgages.push(mortgage);
-            });
-        }
+    let add_mortgage = move |_| {
+        portfolio.update(|p| {
+            if p.mortgages.len() >= MAX_MORTGAGES {
+                return;
+            }
+            let id = p.next_mortgage_id();
+            let mut mortgage = MortgageInput {
+                id,
+                name: format!("Mortgage {}", id),
+                ..Default::default()
+            };
+            for (idx, split) in mortgage.splits.iter_mut().enumerate() {
+                split.id = (idx + 1) as u32;
+            }
+            p.mortgages.push(mortgage);
+        });
     };
 
-    let reset = {
-        let portfolio = portfolio;
-        move |_| {
-            remove_from_storage(MORTGAGE_STORAGE_KEY);
-            portfolio.set(MortgagePortfolioInput::default());
-        }
+    let reset = move |_| {
+        remove_from_storage(MORTGAGE_STORAGE_KEY);
+        portfolio.set(MortgagePortfolioInput::default());
     };
 
     view! {

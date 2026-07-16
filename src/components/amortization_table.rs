@@ -7,12 +7,11 @@ use crate::formatting::{fmt_int_commas, fmt_money};
 
 #[component]
 pub fn AmortizationTable(rows: Vec<AmortizationRow>, period_months: Vec<f64>) -> impl IntoView {
-    let monthly_rows: Vec<(usize, AmortizationRow)> =
-        map_periods_to_months(&rows, &period_months)
-            .into_iter()
-            .enumerate()
-            .map(|(i, row)| (i + 1, row))
-            .collect();
+    let monthly_rows: Vec<(usize, AmortizationRow)> = map_periods_to_months(&rows, &period_months)
+        .into_iter()
+        .enumerate()
+        .map(|(i, row)| (i + 1, row))
+        .collect();
 
     view! {
         <section>

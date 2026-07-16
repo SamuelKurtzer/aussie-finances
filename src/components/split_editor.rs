@@ -1,8 +1,6 @@
 use leptos::*;
 
-use crate::domain::mortgages::{
-    LoanPurpose, LoanRepaymentType, MortgagePortfolioInput, RateType,
-};
+use crate::domain::mortgages::{LoanPurpose, LoanRepaymentType, MortgagePortfolioInput, RateType};
 
 #[component]
 pub fn SplitEditor(

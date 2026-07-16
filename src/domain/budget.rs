@@ -112,7 +112,10 @@ mod tests {
 
     #[test]
     fn frequencies_convert_to_annual() {
-        assert_relative_eq!(item(100.0, ExpenseFrequency::Weekly).annual_amount(), 5_200.0);
+        assert_relative_eq!(
+            item(100.0, ExpenseFrequency::Weekly).annual_amount(),
+            5_200.0
+        );
         assert_relative_eq!(
             item(100.0, ExpenseFrequency::Fortnightly).annual_amount(),
             2_600.0

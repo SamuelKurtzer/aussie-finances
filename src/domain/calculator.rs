@@ -94,11 +94,9 @@ pub fn calculate_income(
         + medicare_levy_surcharge_annual
         + help_repayment_annual;
 
-    let net_income_annual = (gross_base_for_tax
-        - salary_sacrifice_annual
-        - extra_super_annual
-        - total_withheld_annual)
-        .max(0.0);
+    let net_income_annual =
+        (gross_base_for_tax - salary_sacrifice_annual - extra_super_annual - total_withheld_annual)
+            .max(0.0);
     let period_divisor = input.pay_frequency.periods_per_year();
 
     let effective_tax_rate_percent = if gross_base_for_tax > 0.0 {
@@ -274,7 +272,10 @@ fn compute_mls(mls_income: f64, input: &CalculatorInput, rules: &TaxRules) -> f6
         // modelled by reducing the tested income.
         let child_adjust =
             rules.mls_family_child_increment * input.dependants.saturating_sub(1) as f64;
-        let family_income = input.family_income_annual.unwrap_or(mls_income).max(mls_income);
+        let family_income = input
+            .family_income_annual
+            .unwrap_or(mls_income)
+            .max(mls_income);
         (&rules.mls_family_tiers, family_income - child_adjust)
     } else {
         (&rules.mls_tiers, mls_income)
@@ -345,6 +346,9 @@ pub fn solve_gross_for_net(
 }
 
 #[cfg(test)]
+// Tests build inputs by mutating a shared base; struct-init would obscure
+// which single field each test varies.
+#[allow(clippy::field_reassign_with_default)]
 mod tests {
     use approx::assert_relative_eq;
 
@@ -449,8 +453,7 @@ mod tests {
         input.has_help_debt = true;
 
         // Old system: 5.5% average rate on the whole $100k.
-        let output =
-            calculate_income(&input, &TaxRules::for_year(input.financial_year)).unwrap();
+        let output = calculate_income(&input, &TaxRules::for_year(input.financial_year)).unwrap();
         assert_relative_eq!(output.help_repayment_annual, 5_500.0, epsilon = 0.1);
     }
 
@@ -609,7 +612,11 @@ mod tests {
 
         // 1% of 105,000 (tier 1: 101k-118k in FY25-26).
         let output = calculate_income(&input, &rules()).unwrap();
-        assert_relative_eq!(output.medicare_levy_surcharge_annual, 1_050.0, epsilon = 0.1);
+        assert_relative_eq!(
+            output.medicare_levy_surcharge_annual,
+            1_050.0,
+            epsilon = 0.1
+        );
     }
 
     #[test]
@@ -618,8 +625,7 @@ mod tests {
         input.income_amount = 99_000.0;
         input.financial_year = FinancialYear::Fy2024_25;
 
-        let output =
-            calculate_income(&input, &TaxRules::for_year(input.financial_year)).unwrap();
+        let output = calculate_income(&input, &TaxRules::for_year(input.financial_year)).unwrap();
         assert_relative_eq!(output.medicare_levy_surcharge_annual, 990.0, epsilon = 0.1);
     }
 
@@ -694,7 +700,11 @@ mod tests {
 
         // SG 12,000, so top-up = 18,000; taxable drops to 82,000.
         let output = calculate_income(&input, &rules()).unwrap();
-        assert_relative_eq!(output.concessional_contributions_annual, 30_000.0, epsilon = 0.1);
+        assert_relative_eq!(
+            output.concessional_contributions_annual,
+            30_000.0,
+            epsilon = 0.1
+        );
         assert_relative_eq!(output.taxable_income_annual, 82_000.0, epsilon = 0.1);
     }
 
@@ -708,7 +718,11 @@ mod tests {
         // SG 12,000 + sacrifice 10,000, so top-up = 8,000;
         // taxable = 100,000 - 10,000 - 8,000 = 82,000.
         let output = calculate_income(&input, &rules()).unwrap();
-        assert_relative_eq!(output.concessional_contributions_annual, 30_000.0, epsilon = 0.1);
+        assert_relative_eq!(
+            output.concessional_contributions_annual,
+            30_000.0,
+            epsilon = 0.1
+        );
         assert_relative_eq!(output.taxable_income_annual, 82_000.0, epsilon = 0.1);
     }
 
@@ -720,7 +734,11 @@ mod tests {
 
         // SG 36,000 already exceeds the 30,000 cap; no top-up.
         let output = calculate_income(&input, &rules()).unwrap();
-        assert_relative_eq!(output.concessional_contributions_annual, 36_000.0, epsilon = 0.1);
+        assert_relative_eq!(
+            output.concessional_contributions_annual,
+            36_000.0,
+            epsilon = 0.1
+        );
         assert_relative_eq!(output.taxable_income_annual, 300_000.0, epsilon = 0.1);
     }
 
@@ -829,7 +847,10 @@ mod tests {
         check.income_amount = solved;
         check.income_unit = IncomeUnit::Annual;
         let net = calculate_income(&check, &rules).unwrap().net_income_annual;
-        assert!(net >= target - 1.0, "net {net} fell short of target {target}");
+        assert!(
+            net >= target - 1.0,
+            "net {net} fell short of target {target}"
+        );
     }
 
     #[test]

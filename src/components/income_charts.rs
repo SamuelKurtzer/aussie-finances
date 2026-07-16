@@ -23,15 +23,12 @@ pub fn TaxPieChart(
     let income_tax_net =
         (result.income_tax_annual - result.lito_annual - result.sapto_annual).max(0.0);
     let medicare = result.medicare_levy_annual + result.medicare_levy_surcharge_annual;
-    let sacrificed =
-        (gross - result.net_income_annual - result.total_withheld_annual).max(0.0);
+    let sacrificed = (gross - result.net_income_annual - result.total_withheld_annual).max(0.0);
     let has_outgoings =
         mortgage_annual > 0.005 || debt_recycling_annual > 0.005 || expenses_annual > 0.005;
-    let remaining_net = (result.net_income_annual
-        - mortgage_annual
-        - debt_recycling_annual
-        - expenses_annual)
-        .max(0.0);
+    let remaining_net =
+        (result.net_income_annual - mortgage_annual - debt_recycling_annual - expenses_annual)
+            .max(0.0);
 
     let slices: Vec<Slice> = [
         Slice {
@@ -106,9 +103,8 @@ pub fn TaxPieChart(
                 let (x0, y0) = (cx + r * a0.cos(), cy + r * a0.sin());
                 let (x1, y1) = (cx + r * a1.cos(), cy + r * a1.sin());
                 let large = if (a1 - a0) > TAU / 2.0 { 1 } else { 0 };
-                let d = format!(
-                    "M{cx},{cy} L{x0:.2},{y0:.2} A{r},{r} 0 {large} 1 {x1:.2},{y1:.2} Z"
-                );
+                let d =
+                    format!("M{cx},{cy} L{x0:.2},{y0:.2} A{r},{r} 0 {large} 1 {x1:.2},{y1:.2} Z");
                 view! { <path d={d} fill={s.color} class="pie-slice" /> }.into_view()
             }
         })

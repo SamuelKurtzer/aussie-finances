@@ -48,6 +48,7 @@ pub fn save_raw_to_storage(key: &str, raw: &str) {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+#[allow(dead_code)]
 pub fn save_raw_to_storage(_key: &str, _raw: &str) {}
 
 #[cfg(target_arch = "wasm32")]
