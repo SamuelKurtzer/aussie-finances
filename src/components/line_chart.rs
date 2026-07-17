@@ -17,7 +17,7 @@ fn axis_step(value: f64) -> f64 {
     if value <= 1.0 {
         return 1.0;
     }
-    let target_ticks = 10.0;
+    let target_ticks = 6.0;
     let raw = (value / target_ticks).max(1.0);
     let exponent = raw.log10().floor();
     let magnitude = 10_f64.powf(exponent);
@@ -42,7 +42,7 @@ pub fn MultiLineChart(
 ) -> impl IntoView {
     let width = 1040.0;
     let height = 460.0;
-    let left_pad = 136.0;
+    let left_pad = 152.0;
     let right_pad = 24.0;
     let top_pad = 30.0;
     let bottom_pad = 74.0;
@@ -88,30 +88,39 @@ pub fn MultiLineChart(
     let months_for_hover_readout = period_months.clone();
     let months_for_mouse = period_months.clone();
 
+    // Axis range covers [axis_min, axis_max]; axis_min drops below zero when
+    // any enabled series does (e.g. early net worth), otherwise stays 0 and
+    // rendering matches the old zero-floored behavior exactly.
     let y_axis = create_memo(move |_| {
-        let max_v = lines_for_scale
-            .iter()
-            .enumerate()
-            .filter(|(idx, _)| enabled_for_scale[*idx].get())
-            .flat_map(|(_, l)| l.values.iter().copied())
-            .fold(0.0_f64, f64::max)
-            .max(1.0);
-        let y_headroom = max_v * 1.05;
-        let y_step = axis_step(y_headroom);
-        let y_ticks = (y_headroom / y_step).ceil().max(1.0) as usize;
-        let axis_max = y_step * y_ticks as f64;
-        (axis_max, y_step, y_ticks)
+        let enabled_values = || {
+            lines_for_scale
+                .iter()
+                .enumerate()
+                .filter(|(idx, _)| enabled_for_scale[*idx].get())
+                .flat_map(|(_, l)| l.values.iter().copied())
+        };
+        let max_v = enabled_values().fold(0.0_f64, f64::max).max(1.0);
+        let min_v = enabled_values().fold(0.0_f64, f64::min);
+        let y_step = axis_step((max_v - min_v) * 1.05);
+        let axis_max = y_step * (max_v * 1.05 / y_step).ceil().max(1.0);
+        let axis_min = -y_step * ((-min_v * 1.05) / y_step).ceil().max(0.0);
+        (axis_min, axis_max, y_step)
     });
 
     let y_grid = move || {
-        let (_axis_max, y_step, y_ticks) = y_axis.get();
-        (0..=y_ticks)
+        let (axis_min, axis_max, y_step) = y_axis.get();
+        let ticks = ((axis_max - axis_min) / y_step).round().max(1.0) as usize;
+        (0..=ticks)
             .map(|i| {
-                let value = (y_ticks - i) as f64 * y_step;
-                let y = top_pad + (i as f64 / y_ticks as f64) * chart_h;
+                let value = axis_max - i as f64 * y_step;
+                let y = top_pad + (i as f64 / ticks as f64) * chart_h;
+                let is_zero_line = axis_min < 0.0 && value.abs() < y_step * 1e-6;
                 view! {
                     <g>
-                        <line x1={left_pad} y1={y} x2={left_pad + chart_w} y2={y} class="axis-grid" />
+                        <line
+                            x1={left_pad} y1={y} x2={left_pad + chart_w} y2={y}
+                            class={if is_zero_line { "axis-zero" } else { "axis-grid" }}
+                        />
                         <text x={left_pad - 12.0} y={y + 4.0} text-anchor="end" class="axis-label">{fmt_currency(value)}</text>
                     </g>
                 }
@@ -119,7 +128,7 @@ pub fn MultiLineChart(
             .collect_view()
     };
 
-    let x_ticks = 12_usize;
+    let x_ticks = 6_usize;
     let x_grid = (0..=x_ticks)
         .map(|i| {
             let t = i as f64 / x_ticks as f64;
@@ -136,7 +145,8 @@ pub fn MultiLineChart(
         .collect_view();
 
     let series = move || {
-        let (axis_max, _y_step, _y_ticks) = y_axis.get();
+        let (axis_min, axis_max, _y_step) = y_axis.get();
+        let span = (axis_max - axis_min).max(f64::EPSILON);
         lines_for_series
             .iter()
             .enumerate()
@@ -155,7 +165,7 @@ pub fn MultiLineChart(
                             .copied()
                             .unwrap_or_else(|| i as f64 * (data_max_x / (n - 1.0).max(1.0)));
                         let x = left_pad + ((month / axis_max_x).clamp(0.0, 1.0)) * chart_w;
-                        let y = top_pad + chart_h - ((*v / axis_max) * chart_h);
+                        let y = top_pad + ((axis_max - *v) / span) * chart_h;
                         format!("{x:.1},{y:.1}")
                     })
                     .collect::<Vec<_>>()
@@ -210,13 +220,15 @@ pub fn MultiLineChart(
                         if !enabled_for_hover[line_idx].get() {
                             return view! {
                                 <div class="hover-row muted">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || enabled.get()
-                                        on:change=move |ev| enabled.set(event_target_checked(&ev))
-                                    />
-                                    <span class="legend-swatch" style={format!("background:{}; opacity:{}", line.color, line.opacity)}></span>
-                                    <span>{line.name.clone()}</span>
+                                    <label class="hover-toggle">
+                                        <input
+                                            type="checkbox"
+                                            prop:checked=move || enabled.get()
+                                            on:change=move |ev| enabled.set(event_target_checked(&ev))
+                                        />
+                                        <span class="legend-swatch" style={format!("background:{}; opacity:{}", line.color, line.opacity)}></span>
+                                        <span>{line.name.clone()}</span>
+                                    </label>
                                     <strong>"Hidden"</strong>
                                 </div>
                             };
@@ -224,13 +236,15 @@ pub fn MultiLineChart(
                         let value = line.values.get(idx).copied().unwrap_or(0.0);
                         view! {
                             <div class="hover-row">
-                                <input
-                                    type="checkbox"
-                                    prop:checked=move || enabled.get()
-                                    on:change=move |ev| enabled.set(event_target_checked(&ev))
-                                />
-                                <span class="legend-swatch" style={format!("background:{}; opacity:{}", line.color, line.opacity)}></span>
-                                <span>{line.name.clone()}</span>
+                                <label class="hover-toggle">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || enabled.get()
+                                        on:change=move |ev| enabled.set(event_target_checked(&ev))
+                                    />
+                                    <span class="legend-swatch" style={format!("background:{}; opacity:{}", line.color, line.opacity)}></span>
+                                    <span>{line.name.clone()}</span>
+                                </label>
                                 <strong>{fmt_currency(value)}</strong>
                             </div>
                         }
@@ -272,15 +286,26 @@ pub fn MultiLineChart(
         hover_idx.set(Some(idx.min(n_points.saturating_sub(1))));
     };
 
+    let aria_label = format!(
+        "{}: {}",
+        title,
+        lines
+            .iter()
+            .map(|l| l.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+
     view! {
         <section class="chart-block">
             <Collapsible title=title>
 
+            <div class="chart-scroll">
             <svg
                 viewBox="0 0 1040 460"
                 class="line-chart"
                 role="img"
-                aria-label="mortgage trend chart"
+                aria-label={aria_label}
             >
                 {y_grid}
                 {x_grid}
@@ -299,6 +324,7 @@ pub fn MultiLineChart(
                 />
                 {hover_line}
             </svg>
+            </div>
 
             {hover_readout}
             </Collapsible>

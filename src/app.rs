@@ -168,13 +168,15 @@ pub fn App() -> impl IntoView {
                 </p>
             </header>
             <section class="workspace">
-                <nav class="tabs">
+                <nav class="tabs" role="tablist">
                     {Tab::ALL
                         .into_iter()
                         .map(|tab| {
                             view! {
                                 <button
                                     type="button"
+                                    role="tab"
+                                    attr:aria-selected=move || if active_tab.get() == tab { "true" } else { "false" }
                                     attr:aria-current=move || (active_tab.get() == tab).then_some("page")
                                     on:click=move |_| active_tab.set(tab)
                                 >
