@@ -321,7 +321,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                                 resolved.dividend_company_tax_rate_percent
                             )
                         } else {
-                            "No debt recycling projection found - enable the strategy on the Recycle tab first."
+                            "Debt recycling projects no dividend income in year 1 - enable the strategy on the Recycle tab and check its starting investment and redraw capacity."
                                 .to_string()
                         };
                         view! { <p class="muted">{note}</p> }
