@@ -7,6 +7,8 @@ use crate::domain::mortgages::{
     calculate_mortgage_portfolio, DebtRecycleInput, MortgageInput, MortgagePortfolioInput,
     RepaymentCadence, MAX_MORTGAGES,
 };
+use crate::formatting::fmt_money;
+use crate::loaders::derived_surplus_top_up_per_period;
 use crate::storage::{
     load_from_storage, load_raw_from_storage, persisted_signal, remove_from_storage,
     DEBT_RECYCLE_STORAGE_KEY, INCOME_STORAGE_KEY, MORTGAGE_STORAGE_KEY,
@@ -21,10 +23,21 @@ pub fn MortgagesPage() -> impl IntoView {
             .as_deref()
             .and_then(crate::domain::mortgages::load_income_context_from_saved_input)
     });
+    let derived_top_up = create_memo(move |_| {
+        let mut input = portfolio.get();
+        if !input.top_up_from_budget_surplus {
+            return None;
+        }
+        input.debt_recycle = load_from_storage::<DebtRecycleInput>(DEBT_RECYCLE_STORAGE_KEY);
+        Some(derived_surplus_top_up_per_period(&input))
+    });
     let result = create_memo(move |_| {
         let income = income_context.get();
         let mut input = portfolio.get();
         input.debt_recycle = load_from_storage::<DebtRecycleInput>(DEBT_RECYCLE_STORAGE_KEY);
+        if let Some(top_up) = derived_top_up.get() {
+            input.offset_top_up_per_period = top_up;
+        }
         calculate_mortgage_portfolio(&input, income.as_ref())
     });
 
@@ -90,18 +103,50 @@ pub fn MortgagesPage() -> impl IntoView {
                         <span>"Use income cadence context for affordability metric"</span>
                     </label>
 
+                    <label class="check-row">
+                        <input
+                            type="checkbox"
+                            prop:checked=move || portfolio.get().top_up_from_budget_surplus
+                            on:change=move |ev| {
+                                portfolio.update(|p| {
+                                    p.top_up_from_budget_surplus = event_target_checked(&ev)
+                                })
+                            }
+                        />
+                        <span>"Top up offset with budget surplus"</span>
+                    </label>
+
                     <label for="offset-top-up">"Offset top-up per period (AUD)"</label>
                     <input
                         id="offset-top-up"
                         type="number" inputmode="decimal"
                         min="0"
                         step="1"
-                        prop:value=move || portfolio.get().offset_top_up_per_period
+                        prop:disabled=move || portfolio.get().top_up_from_budget_surplus
+                        prop:value=move || {
+                            derived_top_up
+                                .get()
+                                .unwrap_or_else(|| portfolio.get().offset_top_up_per_period)
+                        }
                         on:input=move |ev| {
                             let value = event_target_value(&ev).parse::<f64>().unwrap_or(0.0);
                             portfolio.update(|p| p.offset_top_up_per_period = value.max(0.0));
                         }
                     />
+                    {move || {
+                        derived_top_up.get().map(|top_up| {
+                            let note = if top_up > 0.0 {
+                                format!(
+                                    "Derived from Budget: {} per period goes into the offset.",
+                                    fmt_money(top_up)
+                                )
+                            } else {
+                                "No budget surplus found - set up the Income and Budget tabs first."
+                                    .to_string()
+                            };
+                            view! { <p class="muted">{note}</p> }
+                        })
+                    }}
 
                     <div class="button-row">
                         <button type="button" on:click=add_mortgage>"Add Mortgage"</button>

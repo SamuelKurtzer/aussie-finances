@@ -300,15 +300,44 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                 closed=true
                 help="Dividends are grossed up by their franking credits, which then apply as a refundable tax offset."
             >
+                <label class="check-row">
+                    <input
+                        type="checkbox"
+                        prop:checked=move || input.get().link_dividends_to_dr
+                        on:change=move |ev| {
+                            input.update(|s| s.link_dividends_to_dr = event_target_checked(&ev))
+                        }
+                    />
+                    <span>"Use debt recycling projection (year 1)"</span>
+                </label>
+                {move || {
+                    input.get().link_dividends_to_dr.then(|| {
+                        let resolved = crate::loaders::resolve_income_input(input.get());
+                        let note = if resolved.dividends_annual > 0.0 {
+                            format!(
+                                "From Debt Recycling: {} in year-1 dividends @ {:.0}% franked, {:.0}% company rate.",
+                                crate::formatting::fmt_money(resolved.dividends_annual),
+                                resolved.dividend_franking_percent,
+                                resolved.dividend_company_tax_rate_percent
+                            )
+                        } else {
+                            "No debt recycling projection found - enable the strategy on the Recycle tab first."
+                                .to_string()
+                        };
+                        view! { <p class="muted">{note}</p> }
+                    })
+                }}
+
                 <label for="dividends">
                     "Dividends (annual, cash)"
-                    <InfoTip text="Cash dividends received during the year. Franked dividends carry a credit for the 30% company tax already paid; the grossed-up amount is taxed at your marginal rate and the credit refunds any excess." />
+                    <InfoTip text="Cash dividends received during the year. Franked dividends carry a credit for the company tax already paid; the grossed-up amount is taxed at your marginal rate and the credit refunds any excess." />
                 </label>
                 <input
                     id="dividends"
                     type="number" inputmode="decimal"
                     min="0"
                     step="0.01"
+                    prop:disabled=move || input.get().link_dividends_to_dr
                     prop:value=move || input.get().dividends_annual
                     on:input=move |ev| update_number("dividends_annual", event_target_value(&ev))
                 />
@@ -320,6 +349,7 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     min="0"
                     max="100"
                     step="1"
+                    prop:disabled=move || input.get().link_dividends_to_dr
                     prop:value=move || input.get().dividend_franking_percent
                     on:input=move |ev| update_number("dividend_franking_percent", event_target_value(&ev))
                 />

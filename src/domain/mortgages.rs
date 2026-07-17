@@ -129,6 +129,10 @@ pub struct MortgagePortfolioInput {
     pub repayment_cadence: RepaymentCadence,
     pub match_income_cadence: bool,
     pub offset_top_up_per_period: f64,
+    /// Derive the offset top-up from the Budget tab's monthly surplus
+    /// instead of the manual amount above.
+    #[serde(default)]
+    pub top_up_from_budget_surplus: bool,
     #[serde(default)]
     pub debt_recycle: Option<DebtRecycleInput>,
     pub mortgages: Vec<MortgageInput>,
@@ -250,6 +254,7 @@ impl Default for MortgagePortfolioInput {
             repayment_cadence: RepaymentCadence::Fortnightly,
             match_income_cadence: true,
             offset_top_up_per_period: 0.0,
+            top_up_from_budget_surplus: false,
             debt_recycle: None,
             mortgages: vec![MortgageInput::default()],
         }
@@ -1303,6 +1308,34 @@ pub fn first_year_repayments(rows: &[AmortizationRow], period_months: &[f64]) ->
         .sum()
 }
 
+/// Dividend cash received in the first 12 projection months, prorated across
+/// month boundaries exactly like `first_year_repayments`.
+pub fn first_year_dividend_cash(periods: &[DebtRecyclePeriod], period_months: &[f64]) -> f64 {
+    let aligned = period_months.len() == periods.len() + 1;
+    periods
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let (start, end) = if aligned {
+                (period_months[i], period_months[i + 1])
+            } else {
+                (i as f64, (i + 1) as f64)
+            };
+            if start >= 12.0 {
+                return 0.0;
+            }
+            let duration = (end - start).max(1e-9);
+            let overlap = (end.min(12.0) - start).max(0.0);
+            p.dividend_cash * (overlap / duration)
+        })
+        .sum()
+}
+
+/// Convert a monthly amount to a per-repayment-period amount, clamped at zero.
+pub fn monthly_amount_per_period(monthly: f64, cadence: RepaymentCadence) -> f64 {
+    monthly.max(0.0) * 12.0 / cadence.periods_per_year() as f64
+}
+
 impl DebtRecycleInput {
     pub fn normalize_mortgage_selection(&mut self, portfolio: &MortgagePortfolioInput) {
         if portfolio.mortgages.iter().any(|m| m.id == self.mortgage_id) {
@@ -1809,6 +1842,69 @@ mod tests {
         }"#;
         let split = serde_json::from_str::<SplitInput>(raw).unwrap();
         assert_eq!(split.fixed_expiry, None);
+    }
+
+    #[test]
+    fn monthly_amount_converts_to_each_cadence() {
+        assert_relative_eq!(
+            monthly_amount_per_period(1_000.0, RepaymentCadence::Monthly),
+            1_000.0
+        );
+        assert_relative_eq!(
+            monthly_amount_per_period(1_000.0, RepaymentCadence::Fortnightly),
+            12_000.0 / 26.0
+        );
+        assert_relative_eq!(
+            monthly_amount_per_period(1_000.0, RepaymentCadence::Weekly),
+            12_000.0 / 52.0
+        );
+        // Negative surplus never drains the offset.
+        assert_relative_eq!(
+            monthly_amount_per_period(-500.0, RepaymentCadence::Monthly),
+            0.0
+        );
+    }
+
+    #[test]
+    fn offset_top_up_from_surplus_flag_defaults_off_in_old_json() {
+        let raw = r#"{
+            "repayment_cadence": "Fortnightly",
+            "match_income_cadence": true,
+            "offset_top_up_per_period": 0.0,
+            "mortgages": []
+        }"#;
+        let parsed = serde_json::from_str::<MortgagePortfolioInput>(raw).unwrap();
+        assert!(!parsed.top_up_from_budget_surplus);
+    }
+
+    #[test]
+    fn first_year_dividend_cash_sums_first_twelve_months() {
+        // Monthly cadence with a deterministic dividend stream: starting
+        // investment only, no growth, no redraws (offset below buffer).
+        let mut input = base_input();
+        input.repayment_cadence = RepaymentCadence::Monthly;
+        input.mortgages[0].offset_balance = 0.0;
+        let mut recycle = recycle_input(input.mortgages[0].id);
+        recycle.dividend_yield_percent = 4.0;
+        recycle.starting_investment_aud = 100_000.0;
+        recycle.emergency_buffer_aud = 1_000_000.0; // never redraw
+        input.debt_recycle = Some(recycle);
+
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        let dr = out.debt_recycle.expect("dr output");
+        let year1 = first_year_dividend_cash(&dr.periods, &out.chart_series.period_months);
+        let expected: f64 = dr.periods[..12].iter().map(|p| p.dividend_cash).sum();
+        assert_relative_eq!(year1, expected, max_relative = 1e-9);
+        assert!(year1 > 0.0);
+
+        // Fortnightly cadence prorates across month boundaries: the same
+        // strategy yields a similar (not wildly different) year-1 figure.
+        let mut fortnightly = input.clone();
+        fortnightly.repayment_cadence = RepaymentCadence::Fortnightly;
+        let out_f = calculate_mortgage_portfolio(&fortnightly, None).unwrap();
+        let dr_f = out_f.debt_recycle.expect("dr output");
+        let year1_f = first_year_dividend_cash(&dr_f.periods, &out_f.chart_series.period_months);
+        assert_relative_eq!(year1_f, year1, max_relative = 0.01);
     }
 
     #[test]

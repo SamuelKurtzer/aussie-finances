@@ -33,10 +33,12 @@ pub fn calculate_income(
         input.extra_super_annual
     };
 
-    // Franked dividends gross up at the 30% company rate: the credit is the
+    // Franked dividends gross up at the company tax rate: the credit is the
     // company tax already paid on the franked share of the dividend.
-    let franking_credits_annual =
-        input.dividends_annual * (input.dividend_franking_percent / 100.0) * (0.30 / 0.70);
+    let company_rate = input.dividend_company_tax_rate_percent / 100.0;
+    let franking_credits_annual = input.dividends_annual
+        * (input.dividend_franking_percent / 100.0)
+        * (company_rate / (1.0 - company_rate));
     let dividend_assessable_annual = input.dividends_annual + franking_credits_annual;
 
     let taxable_income_annual = (gross_base_for_tax + dividend_assessable_annual
@@ -147,9 +149,10 @@ pub fn calculate_income(
     }
 
     if input.dividends_annual > 0.0 {
-        assumptions.push(
-            "Franked dividends are grossed up at the 30% company rate and the franking credit is applied as a refundable offset; a negative Total Withheld is a refund on assessment.".to_string(),
-        );
+        assumptions.push(format!(
+            "Franked dividends are grossed up at the {:.0}% company rate and the franking credit is applied as a refundable offset; a negative Total Withheld is a refund on assessment.",
+            input.dividend_company_tax_rate_percent
+        ));
     }
 
     Ok(CalculatorOutput {
@@ -1027,6 +1030,34 @@ mod tests {
             .net_income_annual;
         let gross = super::solve_gross_for_net(net, &input, &rules()).unwrap();
         assert_relative_eq!(gross, 100_000.0, max_relative = 0.001);
+    }
+
+    #[test]
+    fn base_rate_entity_franking_uses_configured_company_rate() {
+        let mut input = CalculatorInput::default();
+        input.income_amount = 100_000.0;
+        input.dividends_annual = 7_500.0;
+        input.dividend_company_tax_rate_percent = 25.0;
+
+        let output = calculate_income(&input, &rules()).unwrap();
+        // 25% rate: credit = dividends x (0.25 / 0.75).
+        assert_relative_eq!(
+            output.franking_credits_annual,
+            7_500.0 * (0.25 / 0.75),
+            epsilon = 0.01
+        );
+    }
+
+    #[test]
+    fn old_storage_without_company_rate_defaults_to_thirty_percent() {
+        let old_json = r#"{"gross_income_annual":90000.0,"dividends_annual":7000.0}"#;
+        let parsed: CalculatorInput = serde_json::from_str(old_json).unwrap();
+        assert_relative_eq!(parsed.dividend_company_tax_rate_percent, 30.0);
+        assert!(!parsed.link_dividends_to_dr);
+
+        // And the credit matches the pre-change fixed 30% behavior.
+        let output = calculate_income(&parsed, &rules()).unwrap();
+        assert_relative_eq!(output.franking_credits_annual, 3_000.0, epsilon = 0.01);
     }
 
     #[test]

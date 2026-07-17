@@ -118,6 +118,12 @@ pub struct CalculatorInput {
     pub mls_income_for_surcharge_annual: Option<f64>,
     pub dividends_annual: f64,
     pub dividend_franking_percent: f64,
+    /// Company tax rate used for the franking gross-up (30% for most listed
+    /// companies; base-rate entities frank at 25%).
+    pub dividend_company_tax_rate_percent: f64,
+    /// Fill dividends/franking from the Debt Recycling projection's first
+    /// year instead of the manual fields above.
+    pub link_dividends_to_dr: bool,
     /// Annual salary growth applied per forecast year in the spreadsheet.
     pub income_growth_percent: f64,
     pub super_balance_current: f64,
@@ -174,6 +180,8 @@ impl Default for CalculatorInput {
             mls_income_for_surcharge_annual: None,
             dividends_annual: 0.0,
             dividend_franking_percent: 100.0,
+            dividend_company_tax_rate_percent: 30.0,
+            link_dividends_to_dr: false,
             income_growth_percent: 0.0,
             super_balance_current: 0.0,
             super_growth_percent: 0.0,

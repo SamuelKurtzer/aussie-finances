@@ -8,7 +8,7 @@ use crate::domain::calculator::{calculate_income, solve_gross_for_net};
 use crate::domain::tax_rules::TaxRules;
 use crate::domain::types::{CalculatorError, CalculatorInput, IncomeUnit, PayFrequency};
 use crate::formatting::fmt_money;
-use crate::loaders::{load_budget_annual, load_household_outgoings};
+use crate::loaders::{load_budget_annual, load_household_outgoings, resolve_income_input};
 use crate::storage::{persisted_signal, INCOME_STORAGE_KEY};
 
 #[component]
@@ -16,7 +16,7 @@ pub fn IncomePage() -> impl IntoView {
     let input = persisted_signal::<CalculatorInput>(INCOME_STORAGE_KEY);
 
     let computed = create_memo(move |_| {
-        let current = input.get();
+        let current = resolve_income_input(input.get());
         let rules = TaxRules::for_year(current.financial_year);
         calculate_income(&current, &rules)
     });
@@ -28,14 +28,14 @@ pub fn IncomePage() -> impl IntoView {
         if target <= 0.0 {
             return None;
         }
-        let current = input.get();
+        let current = resolve_income_input(input.get());
         let rules = TaxRules::for_year(current.financial_year);
         let annual_target = target * target_freq.get().periods_per_year();
         solve_gross_for_net(annual_target, &current, &rules)
     });
 
     let rate_curve = create_memo(move |_| {
-        let current = input.get();
+        let current = resolve_income_input(input.get());
         let rules = TaxRules::for_year(current.financial_year);
         let base_gross = match calculate_income(&current, &rules) {
             Ok(out) => out.gross_income_annual,

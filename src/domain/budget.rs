@@ -95,6 +95,21 @@ impl BudgetInput {
     }
 }
 
+/// Monthly cash left over after expenses, mortgage repayments, and the debt
+/// recycle base amount. Mortgage repayments must be computed WITHOUT any
+/// surplus-derived offset top-up: P&I repayments are a fixed amortized amount,
+/// so the top-up changes the interest/principal split but not the repayment
+/// itself, which keeps this free of circularity (the approximation only
+/// breaks near early payoff).
+pub fn monthly_surplus(
+    budget: &BudgetInput,
+    monthly_net_income: f64,
+    monthly_mortgage_repayments: f64,
+    monthly_dr_outgoings: f64,
+) -> f64 {
+    monthly_net_income - budget.monthly_total() - monthly_mortgage_repayments - monthly_dr_outgoings
+}
+
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
@@ -166,5 +181,18 @@ mod tests {
     fn old_storage_format_missing_items_still_loads() {
         let budget: BudgetInput = serde_json::from_str("{}").unwrap();
         assert!(budget.items.is_empty());
+    }
+
+    #[test]
+    fn monthly_surplus_subtracts_all_outgoings() {
+        let budget = BudgetInput {
+            items: vec![item(1_000.0, ExpenseFrequency::Monthly)],
+        };
+        assert_relative_eq!(monthly_surplus(&budget, 8_000.0, 3_000.0, 2_000.0), 2_000.0);
+        // Overspending yields a negative surplus (callers clamp at zero).
+        assert_relative_eq!(
+            monthly_surplus(&budget, 4_000.0, 3_000.0, 2_000.0),
+            -2_000.0
+        );
     }
 }

@@ -22,6 +22,10 @@ pub fn DebtRecyclingPage() -> impl IntoView {
         let mut recycle = strategy.get();
         recycle.normalize_mortgage_selection(&portfolio);
         portfolio.debt_recycle = Some(recycle);
+        if portfolio.top_up_from_budget_surplus {
+            portfolio.offset_top_up_per_period =
+                crate::loaders::derived_surplus_top_up_per_period(&portfolio);
+        }
         let income_context = load_raw_from_storage(INCOME_STORAGE_KEY)
             .as_deref()
             .and_then(load_income_context_from_saved_input);

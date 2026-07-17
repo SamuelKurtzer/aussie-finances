@@ -87,6 +87,15 @@ pub fn validate_input(input: &CalculatorInput) -> Vec<ValidationIssue> {
         });
     }
 
+    if input.dividend_company_tax_rate_percent <= 0.0
+        || input.dividend_company_tax_rate_percent >= 100.0
+    {
+        issues.push(ValidationIssue {
+            field: "dividend_company_tax_rate_percent",
+            message: "Company tax rate must be greater than 0 and less than 100.".to_string(),
+        });
+    }
+
     if input.income_growth_percent < -100.0 {
         issues.push(ValidationIssue {
             field: "income_growth_percent",
