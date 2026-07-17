@@ -138,7 +138,7 @@ pub fn App() -> impl IntoView {
         <main class="site">
             <header class="hero">
                 <div class="hero-top">
-                    <h1>"aus-fin " <span class="badge">"v0.1"</span></h1>
+                    <h1>"aus-fin " <span class="badge">{concat!("v", env!("CARGO_PKG_VERSION"))}</span></h1>
                     <div class="hero-actions">
                         <button type="button" class="secondary" on:click=move |_| export_backup()>
                             "Export Data"

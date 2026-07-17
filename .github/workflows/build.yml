@@ -23,6 +23,8 @@ jobs:
         run: cargo fmt --check
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
+      - name: Clippy (wasm32)
+        run: cargo clippy -p aus-fin --target wasm32-unknown-unknown -- -D warnings
       - name: Run tests
         run: cargo test -p aus-fin
       - name: Install trunk
@@ -34,9 +36,31 @@ jobs:
       - name: Build web release
         run: trunk build --release
 
+  version-guard:
+    # On tags, refuse to build bundles whose internal version disagrees with
+    # the tag. Also runs (as a no-op) on manual dispatch so the needs: chain
+    # of the build jobs is satisfied there too.
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert tag matches Cargo.toml and tauri.conf.json
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          CARGO=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/version = "(.*)"/\1/')
+          TAURI_CARGO=$(grep -m1 '^version = ' src-tauri/Cargo.toml | sed -E 's/version = "(.*)"/\1/')
+          TAURI=$(jq -r .version src-tauri/tauri.conf.json)
+          echo "tag=$TAG cargo=$CARGO tauri-cargo=$TAURI_CARGO tauri.conf=$TAURI"
+          if [ "$TAG" != "$CARGO" ] || [ "$TAG" != "$TAURI" ] || [ "$TAG" != "$TAURI_CARGO" ]; then
+            echo "::error::Release version mismatch: tag v$TAG vs Cargo.toml $CARGO, src-tauri/Cargo.toml $TAURI_CARGO, tauri.conf.json $TAURI. Bump all to match before tagging."
+            exit 1
+          fi
+
   desktop-linux:
     # Bundles are only built for tags and manual runs; tests cover pushes.
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: [version-guard]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -67,6 +91,7 @@ jobs:
 
   android-apk:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: [version-guard]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
