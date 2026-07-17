@@ -88,6 +88,15 @@ pub enum LoanRepaymentType {
     InterestOnlyThenPrincipalAndInterest,
 }
 
+/// A fixed-rate period that ends before the loan term does: after
+/// `fixed_months` the split reverts to a variable rate and the repayment
+/// re-amortizes over the remaining term (standard lender rollover).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FixedRateExpiry {
+    pub fixed_months: u32,
+    pub revert_rate_percent: f64,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SplitInput {
     pub id: u32,
@@ -98,6 +107,8 @@ pub struct SplitInput {
     pub loan_purpose: LoanPurpose,
     pub repayment_type: LoanRepaymentType,
     pub interest_only_years: f64,
+    #[serde(default)]
+    pub fixed_expiry: Option<FixedRateExpiry>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -211,6 +222,7 @@ impl Default for SplitInput {
             loan_purpose: LoanPurpose::OwnerOccupied,
             repayment_type: LoanRepaymentType::PrincipalAndInterest,
             interest_only_years: 0.0,
+            fixed_expiry: None,
         }
     }
 }
@@ -312,6 +324,8 @@ struct WorkingSplit {
     repayment_type: LoanRepaymentType,
     loan_purpose: LoanPurpose,
     fixed_repayment: f64,
+    /// (first period at the reverted rate, new per-period rate)
+    rate_change: Option<(usize, f64)>,
 }
 
 #[derive(Clone)]
@@ -433,6 +447,16 @@ pub fn calculate_mortgage_portfolio(
                     }
                     LoanRepaymentType::InterestOnlyThenPrincipalAndInterest => 0.0,
                 };
+                let rate_change = split.fixed_expiry.map(|fx| {
+                    let change_period = ((fx.fixed_months as f64 / 12.0) * periods_per_year as f64)
+                        .round()
+                        .max(1.0) as usize
+                        + 1;
+                    (
+                        change_period,
+                        fx.revert_rate_percent / 100.0 / periods_per_year as f64,
+                    )
+                });
                 WorkingSplit {
                     balance: split.loan_amount,
                     recycled_balance: 0.0,
@@ -442,6 +466,7 @@ pub fn calculate_mortgage_portfolio(
                     repayment_type: split.repayment_type,
                     loan_purpose: split.loan_purpose,
                     fixed_repayment,
+                    rate_change,
                 }
             })
             .collect::<Vec<_>>();
@@ -571,10 +596,12 @@ fn build_projection_debt_recycle_config(
         return None;
     };
 
-    let has_eligible_split = mortgage_input
-        .splits
-        .iter()
-        .any(|s| s.rate_type == RateType::Variable && s.loan_purpose == LoanPurpose::OwnerOccupied);
+    // Fixed splits with a rate expiry become variable (and redraw-eligible)
+    // at rollover, so they count as an eventual recycle target.
+    let has_eligible_split = mortgage_input.splits.iter().any(|s| {
+        s.loan_purpose == LoanPurpose::OwnerOccupied
+            && (s.rate_type == RateType::Variable || s.fixed_expiry.is_some())
+    });
     if !has_eligible_split {
         warnings.push(format!(
             "Debt recycle strategy skipped: {} has no variable owner-occupied split to pay into and redraw from.",
@@ -726,6 +753,32 @@ fn run_projection(
             for split in &mut wm.splits {
                 if balance_is_zero(split.balance) {
                     continue;
+                }
+
+                // Fixed-rate rollover: switch to the revert rate and, per
+                // Australian lender convention, re-amortize the remaining
+                // balance over the remaining term so the original term holds.
+                if let Some((change_period, new_rate)) = split.rate_change {
+                    if period >= change_period {
+                        split.rate_per_period = new_rate;
+                        split.rate_type = RateType::Variable;
+                        let in_pi_phase = match split.repayment_type {
+                            LoanRepaymentType::PrincipalAndInterest => true,
+                            LoanRepaymentType::InterestOnlyThenPrincipalAndInterest => {
+                                period > split.io_periods
+                            }
+                        };
+                        if in_pi_phase {
+                            let remaining_periods = wm.term_periods.saturating_sub(period) + 1;
+                            split.fixed_repayment =
+                                amortized_repayment(split.balance, new_rate, remaining_periods);
+                        } else {
+                            // Still interest-only: the lazy P&I setup below
+                            // picks up the new rate when the IO phase ends.
+                            split.fixed_repayment = 0.0;
+                        }
+                        split.rate_change = None;
+                    }
                 }
 
                 let balance_share = if total_split_balance > 0.0 {
@@ -1104,6 +1157,48 @@ pub fn validate_portfolio_input(input: &MortgagePortfolioInput) -> Vec<Validatio
                         si + 1
                     ),
                 });
+            }
+            if let Some(fx) = split.fixed_expiry {
+                if split.rate_type != RateType::Fixed {
+                    issues.push(ValidationIssue {
+                        field: "fixed_expiry",
+                        message: format!(
+                            "Mortgage {} split {} fixed period only applies to fixed-rate splits.",
+                            mi + 1,
+                            si + 1
+                        ),
+                    });
+                }
+                if fx.fixed_months == 0 {
+                    issues.push(ValidationIssue {
+                        field: "fixed_expiry",
+                        message: format!(
+                            "Mortgage {} split {} fixed period must be greater than zero months.",
+                            mi + 1,
+                            si + 1
+                        ),
+                    });
+                }
+                if fx.fixed_months >= mortgage.term_months {
+                    issues.push(ValidationIssue {
+                        field: "fixed_expiry",
+                        message: format!(
+                            "Mortgage {} split {} fixed period must be shorter than the mortgage term.",
+                            mi + 1,
+                            si + 1
+                        ),
+                    });
+                }
+                if fx.revert_rate_percent < 0.0 {
+                    issues.push(ValidationIssue {
+                        field: "fixed_expiry",
+                        message: format!(
+                            "Mortgage {} split {} revert rate must be zero or greater.",
+                            mi + 1,
+                            si + 1
+                        ),
+                    });
+                }
             }
         }
 
@@ -1565,5 +1660,173 @@ mod tests {
             .warnings
             .iter()
             .any(|w| w.contains("no variable owner-occupied split")));
+    }
+
+    /// Monthly-cadence portfolio with no offset, so row.interest /
+    /// row.opening_balance reads back the per-period rate directly.
+    fn fixed_expiry_input(fixed_months: u32, revert_rate_percent: f64) -> MortgagePortfolioInput {
+        let mut input = base_input();
+        input.repayment_cadence = RepaymentCadence::Monthly;
+        input.mortgages[0].offset_balance = 0.0;
+        let split = &mut input.mortgages[0].splits[0];
+        split.annual_rate_percent = 5.0;
+        split.rate_type = RateType::Fixed;
+        split.fixed_expiry = Some(FixedRateExpiry {
+            fixed_months,
+            revert_rate_percent,
+        });
+        input
+    }
+
+    #[test]
+    fn fixed_expiry_changes_interest_after_rollover() {
+        let input = fixed_expiry_input(24, 8.0);
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        let implied_rate = |row: &AmortizationRow| row.interest / row.opening_balance;
+
+        // Period 24 (index 23) is the last fixed period; 25 is the first
+        // reverted one.
+        assert_relative_eq!(
+            implied_rate(&out.amortization_rows[23]),
+            0.05 / 12.0,
+            max_relative = 1e-9
+        );
+        assert_relative_eq!(
+            implied_rate(&out.amortization_rows[24]),
+            0.08 / 12.0,
+            max_relative = 1e-9
+        );
+    }
+
+    #[test]
+    fn fixed_expiry_reamortizes_to_keep_term() {
+        let input = fixed_expiry_input(24, 8.0);
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        let rows = &out.amortization_rows;
+
+        // Repayment steps up at rollover to hold the original term...
+        assert!(rows[24].repayment > rows[23].repayment);
+        // ...and the loan still pays off by the end of the term.
+        assert_eq!(rows.len(), 360);
+        assert!(rows.last().unwrap().closing_balance < 1.0);
+    }
+
+    #[test]
+    fn fixed_expiry_higher_revert_rate_costs_more_interest() {
+        let constant = {
+            let mut input = fixed_expiry_input(24, 8.0);
+            input.mortgages[0].splits[0].fixed_expiry = None;
+            input
+        };
+        let reverting = fixed_expiry_input(24, 8.0);
+
+        let out_constant = calculate_mortgage_portfolio(&constant, None).unwrap();
+        let out_reverting = calculate_mortgage_portfolio(&reverting, None).unwrap();
+        assert!(
+            out_reverting.portfolio_totals.projected_total_interest
+                > out_constant.portfolio_totals.projected_total_interest
+        );
+    }
+
+    #[test]
+    fn fixed_split_without_expiry_matches_variable_split() {
+        let mut fixed = base_input();
+        fixed.mortgages[0].splits[0].rate_type = RateType::Fixed;
+        let variable = base_input();
+
+        let out_fixed = calculate_mortgage_portfolio(&fixed, None).unwrap();
+        let out_variable = calculate_mortgage_portfolio(&variable, None).unwrap();
+        assert_eq!(out_fixed.amortization_rows, out_variable.amortization_rows);
+    }
+
+    #[test]
+    fn fixed_expiry_during_io_phase_uses_new_rate_for_pi() {
+        let mut input = fixed_expiry_input(12, 8.0);
+        let split = &mut input.mortgages[0].splits[0];
+        split.repayment_type = LoanRepaymentType::InterestOnlyThenPrincipalAndInterest;
+        split.interest_only_years = 2.0;
+        let loan_amount = split.loan_amount;
+
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        let rows = &out.amortization_rows;
+
+        // Period 13 (index 12): still interest-only, but at the revert rate.
+        assert_relative_eq!(
+            rows[12].repayment,
+            loan_amount * 0.08 / 12.0,
+            max_relative = 1e-9
+        );
+        // Period 25 (index 24): first P&I repayment amortizes the untouched
+        // balance at the revert rate over the remaining 336 periods.
+        assert_relative_eq!(
+            rows[24].repayment,
+            amortized_repayment(loan_amount, 0.08 / 12.0, 336),
+            max_relative = 1e-9
+        );
+    }
+
+    #[test]
+    fn fixed_split_with_expiry_becomes_recycle_eligible_after_rollover() {
+        let mut input = fixed_expiry_input(6, 6.0);
+        input.mortgages[0].offset_balance = 50_000.0;
+        input.debt_recycle = Some(recycle_input(input.mortgages[0].id));
+
+        let out = calculate_mortgage_portfolio(&input, None).unwrap();
+        let recycle = out.debt_recycle.expect("strategy should not be skipped");
+        let first_draw = recycle
+            .periods
+            .iter()
+            .find(|p| p.redraw_amount > 0.0)
+            .expect("a redraw should fire after rollover");
+        // The split only becomes redraw-eligible once the fixed period ends.
+        assert!(first_draw.period_index > 6);
+    }
+
+    #[test]
+    fn old_split_json_without_fixed_expiry_still_loads() {
+        let raw = r#"{
+            "id": 1,
+            "name": "Split 1",
+            "loan_amount": 500000.0,
+            "annual_rate_percent": 6.0,
+            "rate_type": "Fixed",
+            "loan_purpose": "OwnerOccupied",
+            "repayment_type": "PrincipalAndInterest",
+            "interest_only_years": 0.0
+        }"#;
+        let split = serde_json::from_str::<SplitInput>(raw).unwrap();
+        assert_eq!(split.fixed_expiry, None);
+    }
+
+    #[test]
+    fn fixed_expiry_validation_rejects_bad_inputs() {
+        // Expiry on a variable split.
+        let mut on_variable = fixed_expiry_input(24, 8.0);
+        on_variable.mortgages[0].splits[0].rate_type = RateType::Variable;
+        assert!(validate_portfolio_input(&on_variable)
+            .iter()
+            .any(|i| i.field == "fixed_expiry"));
+
+        // Zero-month fixed period.
+        let zero_months = fixed_expiry_input(0, 8.0);
+        assert!(validate_portfolio_input(&zero_months)
+            .iter()
+            .any(|i| i.field == "fixed_expiry"));
+
+        // Fixed period at least as long as the term.
+        let outlives_term = fixed_expiry_input(360, 8.0);
+        assert!(validate_portfolio_input(&outlives_term)
+            .iter()
+            .any(|i| i.field == "fixed_expiry"));
+
+        // Negative revert rate.
+        let negative_revert = fixed_expiry_input(24, -1.0);
+        assert!(validate_portfolio_input(&negative_revert)
+            .iter()
+            .any(|i| i.field == "fixed_expiry"));
+
+        // The happy path stays clean.
+        let valid = fixed_expiry_input(24, 8.0);
+        assert!(validate_portfolio_input(&valid).is_empty());
     }
 }
