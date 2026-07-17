@@ -229,6 +229,8 @@ mod tests {
             super_guarantee_annual: 14_400.0,
             concessional_contributions_annual: 14_400.0,
             division_293_annual: 0.0,
+            dividends_annual: 0.0,
+            franking_credits_annual: 0.0,
             bracket_breakdown: vec![],
             pay_frequency: PayFrequency::Monthly,
             warnings: vec![],

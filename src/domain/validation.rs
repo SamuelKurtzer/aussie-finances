@@ -73,6 +73,20 @@ pub fn validate_input(input: &CalculatorInput) -> Vec<ValidationIssue> {
         });
     }
 
+    if input.dividends_annual < 0.0 {
+        issues.push(ValidationIssue {
+            field: "dividends_annual",
+            message: "Dividends must be zero or greater.".to_string(),
+        });
+    }
+
+    if !(0.0..=100.0).contains(&input.dividend_franking_percent) {
+        issues.push(ValidationIssue {
+            field: "dividend_franking_percent",
+            message: "Franking percent must be between 0 and 100.".to_string(),
+        });
+    }
+
     if let Some(family_income) = input.family_income_annual {
         if family_income < 0.0 {
             issues.push(ValidationIssue {

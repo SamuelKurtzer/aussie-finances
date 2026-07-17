@@ -116,6 +116,8 @@ pub struct CalculatorInput {
     pub has_private_hospital_cover: bool,
     pub reportable_fringe_benefits_annual: f64,
     pub mls_income_for_surcharge_annual: Option<f64>,
+    pub dividends_annual: f64,
+    pub dividend_franking_percent: f64,
 }
 
 impl CalculatorInput {
@@ -166,6 +168,8 @@ impl Default for CalculatorInput {
             has_private_hospital_cover: false,
             reportable_fringe_benefits_annual: 0.0,
             mls_income_for_surcharge_annual: None,
+            dividends_annual: 0.0,
+            dividend_franking_percent: 100.0,
         }
     }
 }
@@ -197,6 +201,8 @@ pub struct CalculatorOutput {
     pub super_guarantee_annual: f64,
     pub concessional_contributions_annual: f64,
     pub division_293_annual: f64,
+    pub dividends_annual: f64,
+    pub franking_credits_annual: f64,
     pub bracket_breakdown: Vec<BracketLine>,
     pub pay_frequency: PayFrequency,
     pub warnings: Vec<String>,

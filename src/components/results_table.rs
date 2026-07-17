@@ -34,6 +34,16 @@ pub fn ResultsTable(result: CalculatorOutput) -> impl IntoView {
                         <td>{fmt_money(result.gross_income_annual)}</td>
                         <td>{fmt_money(result.gross_income_period)}</td>
                     </tr>
+                    {show(result.dividends_annual).then(|| view! {
+                        <tr>
+                            <td>
+                                "Dividends (cash)"
+                                <InfoTip text="Cash dividends received on top of salary income. The franked share is grossed up into taxable income and its credit applied below." />
+                            </td>
+                            <td>{fmt_money(result.dividends_annual)}</td>
+                            <td>{fmt_money(result.dividends_annual / ppy)}</td>
+                        </tr>
+                    })}
                     {((result.taxable_income_annual - result.gross_income_annual).abs() > 0.005).then(|| view! {
                         <tr>
                             <td>
@@ -70,6 +80,16 @@ pub fn ResultsTable(result: CalculatorOutput) -> impl IntoView {
                             </td>
                             <td>{format!("-{}", fmt_money(result.sapto_annual))}</td>
                             <td>{format!("-{}", fmt_money(result.sapto_annual / ppy))}</td>
+                        </tr>
+                    })}
+                    {show(result.franking_credits_annual).then(|| view! {
+                        <tr>
+                            <td>
+                                "Franking Credits (offset)"
+                                <InfoTip text="Company tax already paid on franked dividends. A refundable offset: it reduces tax and levies, and any excess comes back as a refund on assessment." />
+                            </td>
+                            <td>{format!("-{}", fmt_money(result.franking_credits_annual))}</td>
+                            <td>{format!("-{}", fmt_money(result.franking_credits_annual / ppy))}</td>
                         </tr>
                     })}
                     {show(result.medicare_levy_annual).then(|| view! {

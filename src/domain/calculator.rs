@@ -33,7 +33,13 @@ pub fn calculate_income(
         input.extra_super_annual
     };
 
-    let taxable_income_annual = (gross_base_for_tax
+    // Franked dividends gross up at the 30% company rate: the credit is the
+    // company tax already paid on the franked share of the dividend.
+    let franking_credits_annual =
+        input.dividends_annual * (input.dividend_franking_percent / 100.0) * (0.30 / 0.70);
+    let dividend_assessable_annual = input.dividends_annual + franking_credits_annual;
+
+    let taxable_income_annual = (gross_base_for_tax + dividend_assessable_annual
         - salary_sacrifice_annual
         - extra_super_annual
         - input.deductions_annual)
@@ -89,14 +95,20 @@ pub fn calculate_income(
         0.0
     };
 
+    // Franking credits are a refundable offset: they apply after the
+    // non-refundable offsets (LITO/SAPTO, floored above) and can push the
+    // total below zero — a negative value is the refund on assessment.
     let total_withheld_annual = (income_tax_annual - lito_annual - sapto_annual)
         + medicare_levy_annual
         + medicare_levy_surcharge_annual
-        + help_repayment_annual;
+        + help_repayment_annual
+        - franking_credits_annual;
 
-    let net_income_annual =
-        (gross_base_for_tax - salary_sacrifice_annual - extra_super_annual - total_withheld_annual)
-            .max(0.0);
+    let net_income_annual = (gross_base_for_tax + input.dividends_annual
+        - salary_sacrifice_annual
+        - extra_super_annual
+        - total_withheld_annual)
+        .max(0.0);
     let period_divisor = input.pay_frequency.periods_per_year();
 
     let effective_tax_rate_percent = if gross_base_for_tax > 0.0 {
@@ -134,6 +146,12 @@ pub fn calculate_income(
         ));
     }
 
+    if input.dividends_annual > 0.0 {
+        assumptions.push(
+            "Franked dividends are grossed up at the 30% company rate and the franking credit is applied as a refundable offset; a negative Total Withheld is a refund on assessment.".to_string(),
+        );
+    }
+
     Ok(CalculatorOutput {
         gross_income_annual: gross_base_for_tax,
         gross_income_period: gross_base_for_tax / period_divisor,
@@ -152,6 +170,8 @@ pub fn calculate_income(
         super_guarantee_annual,
         concessional_contributions_annual,
         division_293_annual,
+        dividends_annual: input.dividends_annual,
+        franking_credits_annual,
         bracket_breakdown,
         pay_frequency: input.pay_frequency,
         warnings,
@@ -869,5 +889,138 @@ mod tests {
         assert_relative_eq!(parsed.income_amount, 90_000.0, epsilon = 0.01);
         assert_eq!(parsed.income_unit, IncomeUnit::Annual);
         assert_eq!(parsed.financial_year, FinancialYear::Fy2025_26);
+        assert_relative_eq!(parsed.dividends_annual, 0.0, epsilon = 0.001);
+        assert_relative_eq!(parsed.dividend_franking_percent, 100.0, epsilon = 0.001);
+    }
+
+    #[test]
+    fn fully_franked_dividend_grosses_up() {
+        let mut input = CalculatorInput::default();
+        input.income_amount = 100_000.0;
+        input.dividends_annual = 7_000.0;
+
+        let output = calculate_income(&input, &rules()).unwrap();
+        // $7,000 fully franked carries $3,000 of company tax (30/70 gross-up).
+        assert_relative_eq!(output.franking_credits_annual, 3_000.0, epsilon = 0.01);
+        assert_relative_eq!(output.taxable_income_annual, 110_000.0, epsilon = 0.01);
+        assert_relative_eq!(output.dividends_annual, 7_000.0, epsilon = 0.01);
+    }
+
+    #[test]
+    fn franking_credit_reduces_withheld_by_the_credit() {
+        // Same taxable income either way, so the dividend case must come out
+        // exactly one credit lighter.
+        let mut with_dividends = CalculatorInput::default();
+        with_dividends.income_amount = 100_000.0;
+        with_dividends.dividends_annual = 7_000.0;
+
+        let mut salary_only = CalculatorInput::default();
+        salary_only.income_amount = 110_000.0;
+
+        let out_div = calculate_income(&with_dividends, &rules()).unwrap();
+        let out_sal = calculate_income(&salary_only, &rules()).unwrap();
+        assert_relative_eq!(out_div.taxable_income_annual, out_sal.taxable_income_annual);
+        assert_relative_eq!(
+            out_div.total_withheld_annual,
+            out_sal.total_withheld_annual - 3_000.0,
+            epsilon = 0.01
+        );
+    }
+
+    #[test]
+    fn franking_credit_is_refundable_below_the_tax_free_threshold() {
+        // The classic ATO refund case: no salary, $10,000 fully franked.
+        // Grossed-up income sits under the tax-free threshold, so the whole
+        // credit comes back as a refund.
+        let mut input = CalculatorInput::default();
+        input.income_amount = 0.0;
+        input.dividends_annual = 10_000.0;
+
+        let output = calculate_income(&input, &rules()).unwrap();
+        let credit = 10_000.0 * (0.30 / 0.70);
+        assert_relative_eq!(output.income_tax_annual, 0.0, epsilon = 0.01);
+        assert_relative_eq!(output.total_withheld_annual, -credit, epsilon = 0.01);
+        assert_relative_eq!(output.net_income_annual, 10_000.0 + credit, epsilon = 0.01);
+    }
+
+    #[test]
+    fn unfranked_dividends_carry_no_credit() {
+        let mut input = CalculatorInput::default();
+        input.income_amount = 100_000.0;
+        input.dividends_annual = 7_000.0;
+        input.dividend_franking_percent = 0.0;
+
+        let output = calculate_income(&input, &rules()).unwrap();
+        assert_relative_eq!(output.franking_credits_annual, 0.0, epsilon = 0.001);
+        assert_relative_eq!(output.taxable_income_annual, 107_000.0, epsilon = 0.01);
+    }
+
+    #[test]
+    fn partial_franking_scales_the_credit() {
+        let mut input = CalculatorInput::default();
+        input.income_amount = 100_000.0;
+        input.dividends_annual = 10_000.0;
+        input.dividend_franking_percent = 50.0;
+
+        let output = calculate_income(&input, &rules()).unwrap();
+        assert_relative_eq!(
+            output.franking_credits_annual,
+            10_000.0 * 0.5 * (0.30 / 0.70),
+            epsilon = 0.01
+        );
+    }
+
+    #[test]
+    fn dividends_increase_the_medicare_levy_base() {
+        let mut input = CalculatorInput::default();
+        input.income_amount = 100_000.0;
+        input.dividends_annual = 7_000.0;
+
+        let output = calculate_income(&input, &rules()).unwrap();
+        // Full 2% levy on taxable income including the gross-up.
+        assert_relative_eq!(
+            output.medicare_levy_annual,
+            0.02 * 110_000.0,
+            epsilon = 0.01
+        );
+    }
+
+    #[test]
+    fn franking_credit_can_outweigh_tax_and_levy() {
+        let mut input = CalculatorInput::default();
+        input.income_amount = 25_000.0;
+        input.dividends_annual = 14_000.0;
+
+        let output = calculate_income(&input, &rules()).unwrap();
+        assert!(output.franking_credits_annual > 0.0);
+        assert!(
+            output.total_withheld_annual < 0.0,
+            "expected a net refund, got {}",
+            output.total_withheld_annual
+        );
+    }
+
+    #[test]
+    fn solve_gross_for_net_holds_dividends_constant() {
+        let mut input = CalculatorInput::default();
+        input.income_amount = 100_000.0;
+        input.dividends_annual = 7_000.0;
+
+        let net = calculate_income(&input, &rules())
+            .unwrap()
+            .net_income_annual;
+        let gross = super::solve_gross_for_net(net, &input, &rules()).unwrap();
+        assert_relative_eq!(gross, 100_000.0, max_relative = 0.001);
+    }
+
+    #[test]
+    fn negative_dividends_and_bad_franking_are_rejected() {
+        let mut negative = CalculatorInput::default();
+        negative.dividends_annual = -1.0;
+        assert!(calculate_income(&negative, &rules()).is_err());
+
+        let mut over_franked = CalculatorInput::default();
+        over_franked.dividend_franking_percent = 101.0;
+        assert!(calculate_income(&over_franked, &rules()).is_err());
     }
 }

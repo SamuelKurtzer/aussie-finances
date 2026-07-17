@@ -22,6 +22,10 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
             "salary_sacrifice_amount" => state.salary_sacrifice_amount = parsed,
             "extra_super_annual" => state.extra_super_annual = parsed,
             "reportable_fringe_benefits_annual" => state.reportable_fringe_benefits_annual = parsed,
+            "dividends_annual" => state.dividends_annual = parsed,
+            "dividend_franking_percent" => {
+                state.dividend_franking_percent = parsed.clamp(0.0, 100.0)
+            }
             "dependants" => state.dependants = parsed.max(0.0) as u32,
             "family_income_annual" => {
                 state.family_income_annual = if parsed > 0.0 { Some(parsed) } else { None }
@@ -286,6 +290,36 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     <option value="annual" selected=move || input.get().salary_sacrifice_frequency == ContributionFrequency::Annual>"Per year"</option>
                     <option value="monthly" selected=move || input.get().salary_sacrifice_frequency == ContributionFrequency::Monthly>"Per month"</option>
                 </select>
+            </FieldGroup>
+
+            <FieldGroup
+                label="Investment Income"
+                closed=true
+                help="Dividends are grossed up by their franking credits, which then apply as a refundable tax offset."
+            >
+                <label for="dividends">
+                    "Dividends (annual, cash)"
+                    <InfoTip text="Cash dividends received during the year. Franked dividends carry a credit for the 30% company tax already paid; the grossed-up amount is taxed at your marginal rate and the credit refunds any excess." />
+                </label>
+                <input
+                    id="dividends"
+                    type="number" inputmode="decimal"
+                    min="0"
+                    step="0.01"
+                    prop:value=move || input.get().dividends_annual
+                    on:input=move |ev| update_number("dividends_annual", event_target_value(&ev))
+                />
+
+                <label for="franking-percent">"Franking (%)"</label>
+                <input
+                    id="franking-percent"
+                    type="number" inputmode="decimal"
+                    min="0"
+                    max="100"
+                    step="1"
+                    prop:value=move || input.get().dividend_franking_percent
+                    on:input=move |ev| update_number("dividend_franking_percent", event_target_value(&ev))
+                />
             </FieldGroup>
 
             {move || (input.get().residency == Residency::Resident).then(|| view! {

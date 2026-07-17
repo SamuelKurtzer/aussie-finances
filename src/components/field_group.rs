@@ -6,10 +6,11 @@ use crate::components::collapsible::Collapsible;
 pub fn FieldGroup(
     label: &'static str,
     #[prop(optional)] help: Option<&'static str>,
+    #[prop(optional)] closed: bool,
     children: Children,
 ) -> impl IntoView {
     view! {
-        <Collapsible title=label class="field-group">
+        <Collapsible title=label class="field-group" closed=closed>
             {help.map(|text| view! { <p class="muted">{text}</p> })}
             {children()}
         </Collapsible>
