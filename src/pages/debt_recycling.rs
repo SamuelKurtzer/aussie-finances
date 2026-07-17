@@ -8,19 +8,13 @@ use crate::domain::mortgages::{
 };
 use crate::formatting::{chart_colors, fmt_int_commas, fmt_money};
 use crate::storage::{
-    load_from_storage, load_raw_from_storage, save_to_storage, DEBT_RECYCLE_STORAGE_KEY,
+    load_from_storage, load_raw_from_storage, persisted_signal, DEBT_RECYCLE_STORAGE_KEY,
     INCOME_STORAGE_KEY, MORTGAGE_STORAGE_KEY,
 };
 
 #[component]
 pub fn DebtRecyclingPage() -> impl IntoView {
-    let strategy = create_rw_signal(
-        load_from_storage::<DebtRecycleInput>(DEBT_RECYCLE_STORAGE_KEY).unwrap_or_default(),
-    );
-
-    create_effect(move |_| {
-        save_to_storage(DEBT_RECYCLE_STORAGE_KEY, &strategy.get());
-    });
+    let strategy = persisted_signal::<DebtRecycleInput>(DEBT_RECYCLE_STORAGE_KEY);
 
     let result = create_memo(move |_| {
         let mut portfolio =

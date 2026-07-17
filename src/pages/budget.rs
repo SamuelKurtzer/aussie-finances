@@ -5,8 +5,7 @@ use crate::domain::budget::{BudgetInput, ExpenseFrequency, ExpenseItem};
 use crate::formatting::fmt_money;
 use crate::pages::income::load_household_outgoings;
 use crate::storage::{
-    load_from_storage, load_raw_from_storage, save_to_storage, BUDGET_STORAGE_KEY,
-    INCOME_STORAGE_KEY,
+    load_raw_from_storage, persisted_signal, BUDGET_STORAGE_KEY, INCOME_STORAGE_KEY,
 };
 
 fn load_monthly_net_income() -> Option<f64> {
@@ -19,12 +18,7 @@ fn load_monthly_net_income() -> Option<f64> {
 
 #[component]
 pub fn BudgetPage() -> impl IntoView {
-    let budget =
-        create_rw_signal(load_from_storage::<BudgetInput>(BUDGET_STORAGE_KEY).unwrap_or_default());
-
-    create_effect(move |_| {
-        save_to_storage(BUDGET_STORAGE_KEY, &budget.get());
-    });
+    let budget = persisted_signal::<BudgetInput>(BUDGET_STORAGE_KEY);
 
     let add_item = move |_| {
         budget.update(|b| {

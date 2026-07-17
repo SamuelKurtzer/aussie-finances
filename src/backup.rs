@@ -1,4 +1,7 @@
-use crate::storage::{load_raw_from_storage, save_raw_to_storage, ALL_BACKUP_KEYS};
+use crate::storage::{
+    list_keys_with_prefix, load_raw_from_storage, save_raw_to_storage, ALL_BACKUP_KEYS,
+    COLLAPSE_KEY_PREFIX,
+};
 
 /// Serialize every known storage key into a portable JSON document.
 pub fn export_backup_json() -> String {
@@ -6,6 +9,12 @@ pub fn export_backup_json() -> String {
     for key in ALL_BACKUP_KEYS {
         if let Some(raw) = load_raw_from_storage(key) {
             keys.insert((*key).to_string(), serde_json::Value::String(raw));
+        }
+    }
+    // Collapsible open/closed state lives under dynamic per-section keys.
+    for key in list_keys_with_prefix(COLLAPSE_KEY_PREFIX) {
+        if let Some(raw) = load_raw_from_storage(&key) {
+            keys.insert(key, serde_json::Value::String(raw));
         }
     }
     let backup = serde_json::json!({
@@ -36,6 +45,16 @@ pub fn apply_backup(text: &str) -> Result<usize, String> {
             to_apply.push((key, raw));
         }
     }
+    for (key, value) in keys {
+        if key.starts_with(COLLAPSE_KEY_PREFIX) {
+            let raw = value
+                .as_str()
+                .ok_or_else(|| format!("data for {key} is corrupted"))?;
+            serde_json::from_str::<serde_json::Value>(raw)
+                .map_err(|_| format!("data for {key} is corrupted"))?;
+            to_apply.push((key, raw));
+        }
+    }
     if to_apply.is_empty() {
         return Err("no aus-fin data found in this file".to_string());
     }
@@ -48,7 +67,6 @@ pub fn apply_backup(text: &str) -> Result<usize, String> {
 
 #[cfg(target_arch = "wasm32")]
 pub fn trigger_download(content: &str, filename: &str, mime: &str) {
-    use wasm_bindgen::JsCast;
     use wasm_bindgen::JsValue;
 
     let array = js_sys::Array::new();
@@ -62,19 +80,31 @@ pub fn trigger_download(content: &str, filename: &str, mime: &str) {
         return;
     };
 
-    let document = web_sys::window().unwrap().document().unwrap();
+    let _ = download_via_anchor(&url, filename);
+    let _ = web_sys::Url::revoke_object_url(&url);
+}
+
+/// Click a hidden anchor to save the blob URL. Any DOM failure aborts
+/// silently (matching the storage layer's guard style) instead of panicking
+/// the whole app.
+#[cfg(target_arch = "wasm32")]
+fn download_via_anchor(url: &str, filename: &str) -> Option<()> {
+    use wasm_bindgen::JsCast;
+
+    let document = web_sys::window()?.document()?;
     let a = document
         .create_element("a")
-        .unwrap()
+        .ok()?
         .dyn_into::<web_sys::HtmlAnchorElement>()
-        .unwrap();
-    a.set_href(&url);
+        .ok()?;
+    a.set_href(url);
     a.set_download(filename);
-    a.style().set_property("display", "none").unwrap();
-    document.body().unwrap().append_child(&a).unwrap();
+    a.style().set_property("display", "none").ok()?;
+    let body = document.body()?;
+    body.append_child(&a).ok()?;
     a.click();
-    document.body().unwrap().remove_child(&a).unwrap();
-    let _ = web_sys::Url::revoke_object_url(&url);
+    let _ = body.remove_child(&a);
+    Some(())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -102,6 +132,24 @@ mod tests {
     #[test]
     fn rejects_corrupted_payload_before_applying() {
         let doc = r#"{"keys":{"aus_fin_budget_v1":"{{{not json"}}"#;
+        assert!(apply_backup(doc).is_err());
+    }
+
+    #[test]
+    fn accepts_collapse_state_keys_alongside_core_data() {
+        let doc = r#"{"keys":{
+            "aus_fin_budget_v1":"{}",
+            "aus_fin_collapse_redraw_events_v1":"true"
+        }}"#;
+        assert_eq!(apply_backup(doc), Ok(2));
+    }
+
+    #[test]
+    fn rejects_corrupted_collapse_value_before_applying() {
+        let doc = r#"{"keys":{
+            "aus_fin_budget_v1":"{}",
+            "aus_fin_collapse_redraw_events_v1":"{{{not json"
+        }}"#;
         assert!(apply_backup(doc).is_err());
     }
 

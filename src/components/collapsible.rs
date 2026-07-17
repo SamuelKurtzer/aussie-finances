@@ -1,7 +1,7 @@
 use leptos::*;
 use wasm_bindgen::JsCast;
 
-use crate::storage::{load_from_storage, save_to_storage};
+use crate::storage::{load_from_storage, save_to_storage, COLLAPSE_KEY_PREFIX};
 
 fn storage_key(title: &str) -> String {
     let slug: String = title
@@ -9,7 +9,7 @@ fn storage_key(title: &str) -> String {
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect();
-    format!("aus_fin_collapse_{slug}_v1")
+    format!("{COLLAPSE_KEY_PREFIX}{slug}_v1")
 }
 
 /// Section with a toggleable body. Open/closed state is kept in local

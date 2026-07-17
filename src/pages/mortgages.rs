@@ -8,19 +8,13 @@ use crate::domain::mortgages::{
     RepaymentCadence, MAX_MORTGAGES,
 };
 use crate::storage::{
-    load_from_storage, load_raw_from_storage, remove_from_storage, save_to_storage,
+    load_from_storage, load_raw_from_storage, persisted_signal, remove_from_storage,
     DEBT_RECYCLE_STORAGE_KEY, INCOME_STORAGE_KEY, MORTGAGE_STORAGE_KEY,
 };
 
 #[component]
 pub fn MortgagesPage() -> impl IntoView {
-    let portfolio = create_rw_signal(
-        load_from_storage::<MortgagePortfolioInput>(MORTGAGE_STORAGE_KEY).unwrap_or_default(),
-    );
-
-    create_effect(move |_| {
-        save_to_storage(MORTGAGE_STORAGE_KEY, &portfolio.get());
-    });
+    let portfolio = persisted_signal::<MortgagePortfolioInput>(MORTGAGE_STORAGE_KEY);
 
     let income_context = create_memo(move |_| {
         load_raw_from_storage(INCOME_STORAGE_KEY)

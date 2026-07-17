@@ -14,7 +14,7 @@ use crate::domain::tax_rules::TaxRules;
 use crate::domain::types::{CalculatorError, CalculatorInput, IncomeUnit, PayFrequency};
 use crate::formatting::fmt_money;
 use crate::storage::{
-    load_from_storage, load_raw_from_storage, save_to_storage, BUDGET_STORAGE_KEY,
+    load_from_storage, load_raw_from_storage, persisted_signal, BUDGET_STORAGE_KEY,
     DEBT_RECYCLE_STORAGE_KEY, INCOME_STORAGE_KEY, MORTGAGE_STORAGE_KEY,
 };
 
@@ -53,14 +53,7 @@ pub fn load_household_outgoings() -> (f64, f64) {
 
 #[component]
 pub fn IncomePage() -> impl IntoView {
-    let input = create_rw_signal(
-        load_from_storage::<CalculatorInput>(INCOME_STORAGE_KEY).unwrap_or_default(),
-    );
-
-    create_effect(move |_| {
-        let current = input.get();
-        save_to_storage(INCOME_STORAGE_KEY, &current);
-    });
+    let input = persisted_signal::<CalculatorInput>(INCOME_STORAGE_KEY);
 
     let computed = create_memo(move |_| {
         let current = input.get();

@@ -3,6 +3,9 @@ pub const MORTGAGE_STORAGE_KEY: &str = "aus_fin_mortgage_calculator_v1";
 pub const DEBT_RECYCLE_STORAGE_KEY: &str = "aus_fin_debt_recycle_v1";
 pub const BUDGET_STORAGE_KEY: &str = "aus_fin_budget_v1";
 pub const ACTIVE_TAB_STORAGE_KEY: &str = "aus_fin_active_tab_v1";
+/// Collapsible sections persist open/closed state under dynamic keys with
+/// this prefix (one per section title); backups pick them up by prefix scan.
+pub const COLLAPSE_KEY_PREFIX: &str = "aus_fin_collapse_";
 
 /// Every key included in backup export/import.
 pub const ALL_BACKUP_KEYS: &[&str] = &[
@@ -64,6 +67,37 @@ pub fn save_to_storage<T: serde::Serialize>(key: &str, value: &T) {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn save_to_storage<T: serde::Serialize>(_key: &str, _value: &T) {}
+
+/// RwSignal initialized from localStorage and written back on every change.
+pub fn persisted_signal<T>(key: &'static str) -> leptos::RwSignal<T>
+where
+    T: serde::Serialize + serde::de::DeserializeOwned + Clone + Default + 'static,
+{
+    use leptos::{create_effect, create_rw_signal, SignalWith};
+    let signal = create_rw_signal(load_from_storage::<T>(key).unwrap_or_default());
+    create_effect(move |_| signal.with(|value| save_to_storage(key, value)));
+    signal
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn list_keys_with_prefix(prefix: &str) -> Vec<String> {
+    let Some(window) = web_sys::window() else {
+        return Vec::new();
+    };
+    let Ok(Some(storage)) = window.local_storage() else {
+        return Vec::new();
+    };
+    let len = storage.length().unwrap_or(0);
+    (0..len)
+        .filter_map(|i| storage.key(i).ok().flatten())
+        .filter(|key| key.starts_with(prefix))
+        .collect()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn list_keys_with_prefix(_prefix: &str) -> Vec<String> {
+    Vec::new()
+}
 
 #[cfg(target_arch = "wasm32")]
 pub fn remove_from_storage(key: &str) {

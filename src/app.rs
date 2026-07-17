@@ -7,7 +7,7 @@ use crate::pages::debt_recycling::DebtRecyclingPage;
 use crate::pages::income::IncomePage;
 use crate::pages::mortgages::MortgagesPage;
 use crate::pages::spreadsheet::SpreadsheetPage;
-use crate::storage::{load_from_storage, save_to_storage, ACTIVE_TAB_STORAGE_KEY};
+use crate::storage::{persisted_signal, ACTIVE_TAB_STORAGE_KEY};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Tab {
@@ -114,12 +114,7 @@ fn import_backup_from_input(_ev: &leptos::ev::Event) {}
 
 #[component]
 pub fn App() -> impl IntoView {
-    let active_tab =
-        create_rw_signal(load_from_storage::<Tab>(ACTIVE_TAB_STORAGE_KEY).unwrap_or_default());
-
-    create_effect(move |_| {
-        save_to_storage(ACTIVE_TAB_STORAGE_KEY, &active_tab.get());
-    });
+    let active_tab = persisted_signal::<Tab>(ACTIVE_TAB_STORAGE_KEY);
 
     // Keep the active tab visible when the tab row scrolls horizontally.
     create_effect(move |_| {
