@@ -3,18 +3,8 @@ use leptos::*;
 use crate::components::collapsible::Collapsible;
 use crate::domain::budget::{BudgetInput, ExpenseFrequency, ExpenseItem};
 use crate::formatting::fmt_money;
-use crate::pages::income::load_household_outgoings;
-use crate::storage::{
-    load_raw_from_storage, persisted_signal, BUDGET_STORAGE_KEY, INCOME_STORAGE_KEY,
-};
-
-fn load_monthly_net_income() -> Option<f64> {
-    let raw = load_raw_from_storage(INCOME_STORAGE_KEY)?;
-    let input = serde_json::from_str::<crate::domain::types::CalculatorInput>(&raw).ok()?;
-    let rules = crate::domain::tax_rules::TaxRules::for_year(input.financial_year);
-    let output = crate::domain::calculator::calculate_income(&input, &rules).ok()?;
-    Some(output.net_income_annual / 12.0)
-}
+use crate::loaders::{load_household_outgoings, load_monthly_net_income};
+use crate::storage::{persisted_signal, BUDGET_STORAGE_KEY};
 
 #[component]
 pub fn BudgetPage() -> impl IntoView {

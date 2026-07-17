@@ -23,6 +23,9 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
             "extra_super_annual" => state.extra_super_annual = parsed,
             "reportable_fringe_benefits_annual" => state.reportable_fringe_benefits_annual = parsed,
             "dividends_annual" => state.dividends_annual = parsed,
+            "income_growth_percent" => state.income_growth_percent = parsed.max(-100.0),
+            "super_balance_current" => state.super_balance_current = parsed.max(0.0),
+            "super_growth_percent" => state.super_growth_percent = parsed.max(0.0),
             "dividend_franking_percent" => {
                 state.dividend_franking_percent = parsed.clamp(0.0, 100.0)
             }
@@ -319,6 +322,47 @@ pub fn CalculatorForm(input: RwSignal<CalculatorInput>) -> impl IntoView {
                     step="1"
                     prop:value=move || input.get().dividend_franking_percent
                     on:input=move |ev| update_number("dividend_franking_percent", event_target_value(&ev))
+                />
+            </FieldGroup>
+
+            <FieldGroup
+                label="Growth & Super Projection"
+                closed=true
+                help="Drives the Spreadsheet tab's long-term forecast: salary growth compounds yearly (tax recomputed each year at today's rules), and super compounds monthly with your concessional contributions net of the 15% contributions tax."
+            >
+                <label for="income-growth">
+                    "Income growth (% p.a.)"
+                    <InfoTip text="Expected annual salary growth. Bonus and overtime are held constant. Tax brackets stay at the selected year's rates, so bracket creep shows up over time." />
+                </label>
+                <input
+                    id="income-growth"
+                    type="number" inputmode="decimal"
+                    step="0.1"
+                    prop:value=move || input.get().income_growth_percent
+                    on:input=move |ev| update_number("income_growth_percent", event_target_value(&ev))
+                />
+
+                <label for="super-balance">"Current super balance (AUD)"</label>
+                <input
+                    id="super-balance"
+                    type="number" inputmode="decimal"
+                    min="0"
+                    step="1000"
+                    prop:value=move || input.get().super_balance_current
+                    on:input=move |ev| update_number("super_balance_current", event_target_value(&ev))
+                />
+
+                <label for="super-growth">
+                    "Super growth (% p.a.)"
+                    <InfoTip text="Net investment return inside the fund. A typical balanced fund has averaged around 7% p.a. over the long run. Division 293 is ignored in the projection." />
+                </label>
+                <input
+                    id="super-growth"
+                    type="number" inputmode="decimal"
+                    min="0"
+                    step="0.1"
+                    prop:value=move || input.get().super_growth_percent
+                    on:input=move |ev| update_number("super_growth_percent", event_target_value(&ev))
                 />
             </FieldGroup>
 

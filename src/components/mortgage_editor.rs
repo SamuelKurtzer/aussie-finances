@@ -117,6 +117,34 @@ pub fn MortgageEditor(
                     />
                 </div>
                 <div>
+                    <label>"Property growth (% p.a.)"</label>
+                    <input
+                        type="number" inputmode="decimal"
+                        min="0"
+                        step="0.1"
+                        prop:value=move || {
+                            portfolio
+                                .get()
+                                .mortgages
+                                .iter()
+                                .find(|m| m.id == mortgage_id)
+                                .map(|m| m.property_growth_percent)
+                                .unwrap_or(0.0)
+                        }
+                        on:input=move |ev| {
+                            let value = event_target_value(&ev)
+                                .parse::<f64>()
+                                .unwrap_or(0.0)
+                                .max(0.0);
+                            portfolio.update(|p| {
+                                if let Some(m) = p.mortgages.iter_mut().find(|m| m.id == mortgage_id) {
+                                    m.property_growth_percent = value;
+                                }
+                            });
+                        }
+                    />
+                </div>
+                <div>
                     <label>"Loan length (months)"</label>
                     <input
                         type="number" inputmode="decimal"

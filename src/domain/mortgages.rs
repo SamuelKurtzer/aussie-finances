@@ -116,6 +116,9 @@ pub struct MortgageInput {
     pub id: u32,
     pub name: String,
     pub home_value: f64,
+    /// Annual property appreciation used by the spreadsheet forecast.
+    #[serde(default)]
+    pub property_growth_percent: f64,
     pub offset_balance: f64,
     pub term_months: u32,
     pub splits: Vec<SplitInput>,
@@ -233,6 +236,7 @@ impl Default for MortgageInput {
             id: 1,
             name: "Mortgage 1".to_string(),
             home_value: 750_000.0,
+            property_growth_percent: 0.0,
             offset_balance: 20_000.0,
             term_months: 360,
             splits: vec![SplitInput::default()],
@@ -1090,6 +1094,15 @@ pub fn validate_portfolio_input(input: &MortgagePortfolioInput) -> Vec<Validatio
             issues.push(ValidationIssue {
                 field: "offset_balance",
                 message: format!("Mortgage {} offset must be zero or greater.", mi + 1),
+            });
+        }
+        if mortgage.property_growth_percent < 0.0 {
+            issues.push(ValidationIssue {
+                field: "property_growth_percent",
+                message: format!(
+                    "Mortgage {} property growth must be zero or greater.",
+                    mi + 1
+                ),
             });
         }
         if mortgage.term_months == 0 {

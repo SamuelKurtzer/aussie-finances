@@ -179,6 +179,22 @@ pub fn calculate_income(
     })
 }
 
+/// Income output for forecast year `year_index` (0-based), scaling the salary
+/// by (1 + growth)^year. Bonus, overtime, salary sacrifice, deductions, and
+/// dividends are held constant. Tax rules stay at the configured FY, so rising
+/// effective rates over the forecast (bracket creep) are intentional.
+pub fn income_output_for_year(
+    input: &CalculatorInput,
+    rules: &TaxRules,
+    year_index: usize,
+) -> Option<CalculatorOutput> {
+    let factor = (1.0 + input.income_growth_percent / 100.0).powi(year_index as i32);
+    let mut scaled = input.clone();
+    scaled.income_amount = input.annual_salary() * factor;
+    scaled.income_unit = crate::domain::types::IncomeUnit::Annual;
+    calculate_income(&scaled, rules).ok()
+}
+
 fn tax_brackets_for(residency: Residency, rules: &TaxRules) -> &[Bracket] {
     match residency {
         Residency::Resident => &rules.resident_tax_brackets,

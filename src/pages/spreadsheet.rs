@@ -1,12 +1,10 @@
 use leptos::*;
 
 use crate::backup::trigger_download;
+use crate::components::line_chart::{ChartLine, MultiLineChart};
 use crate::domain::spreadsheet::{build_spreadsheet, rows_to_csv, SpreadsheetRow};
-use crate::formatting::{fmt_int_commas, fmt_money};
-use crate::storage::{
-    load_from_storage, load_raw_from_storage, DEBT_RECYCLE_STORAGE_KEY, INCOME_STORAGE_KEY,
-    MORTGAGE_STORAGE_KEY,
-};
+use crate::formatting::{chart_colors, fmt_int_commas, fmt_money};
+use crate::loaders::{load_income_input, load_mortgage_input, load_mortgage_output};
 
 fn cell(val: Option<f64>) -> String {
     match val {
@@ -15,35 +13,17 @@ fn cell(val: Option<f64>) -> String {
     }
 }
 
-fn load_income_output() -> Option<crate::domain::types::CalculatorOutput> {
-    let raw = load_raw_from_storage(INCOME_STORAGE_KEY)?;
-    let input = serde_json::from_str::<crate::domain::types::CalculatorInput>(&raw).ok()?;
-    let rules = crate::domain::tax_rules::TaxRules::for_year(input.financial_year);
-    crate::domain::calculator::calculate_income(&input, &rules).ok()
-}
-
-fn load_mortgage_output() -> Option<crate::domain::mortgages::MortgagePortfolioOutput> {
-    let raw = load_raw_from_storage(MORTGAGE_STORAGE_KEY)?;
-    let mut portfolio =
-        serde_json::from_str::<crate::domain::mortgages::MortgagePortfolioInput>(&raw).ok()?;
-
-    portfolio.debt_recycle =
-        load_from_storage::<crate::domain::mortgages::DebtRecycleInput>(DEBT_RECYCLE_STORAGE_KEY);
-
-    let income_raw = load_raw_from_storage(INCOME_STORAGE_KEY);
-    let income_ctx = income_raw
-        .as_deref()
-        .and_then(crate::domain::mortgages::load_income_context_from_saved_input);
-
-    crate::domain::mortgages::calculate_mortgage_portfolio(&portfolio, income_ctx.as_ref()).ok()
-}
-
 #[component]
 pub fn SpreadsheetPage() -> impl IntoView {
     let rows = create_memo(move |_| {
-        let income = load_income_output();
+        let income_input = load_income_input();
+        let portfolio_input = load_mortgage_input();
         let mortgage = load_mortgage_output();
-        build_spreadsheet(income.as_ref(), mortgage.as_ref())
+        build_spreadsheet(
+            income_input.as_ref(),
+            portfolio_input.as_ref(),
+            mortgage.as_ref(),
+        )
     });
 
     let download_csv = move |_| {
@@ -72,11 +52,73 @@ pub fn SpreadsheetPage() -> impl IntoView {
                         </p>
                     }.into_view()
                 } else {
-                    view! { <SpreadsheetTable rows=data /> }.into_view()
+                    view! {
+                        <NetWorthChart rows=data.clone() />
+                        <SpreadsheetTable rows=data />
+                    }.into_view()
                 }
             }}
         </section>
     }
+}
+
+#[component]
+fn NetWorthChart(rows: Vec<SpreadsheetRow>) -> impl IntoView {
+    if rows.len() < 2 || rows.iter().all(|r| r.net_worth.is_none()) {
+        return ().into_view();
+    }
+
+    let months: Vec<f64> = std::iter::once(0.0)
+        .chain(rows.iter().map(|r| r.month as f64))
+        .collect();
+    let series = |f: fn(&SpreadsheetRow) -> Option<f64>| -> Option<Vec<f64>> {
+        rows.iter().any(|r| f(r).is_some()).then(|| {
+            // Repeat the first value at month 0 so lines span the full axis.
+            std::iter::once(f(&rows[0]).unwrap_or(0.0))
+                .chain(rows.iter().map(|r| f(r).unwrap_or(0.0)))
+                .collect()
+        })
+    };
+
+    let mut lines = vec![ChartLine {
+        name: "Net Worth".to_string(),
+        color: chart_colors::BALANCE,
+        values: series(|r| r.net_worth).unwrap_or_default(),
+        opacity: 1.0,
+        dashed: false,
+    }];
+    let optional = [
+        ("Property", chart_colors::PROPERTY, {
+            series(|r| r.property_value)
+        }),
+        ("Investments", chart_colors::DR_INVESTMENT, {
+            series(|r| r.dr_investment)
+        }),
+        ("Super", chart_colors::SUPER, series(|r| r.super_balance)),
+        ("Total Debt", chart_colors::INTEREST, {
+            series(|r| r.closing_balance)
+        }),
+    ];
+    for (name, color, values) in optional {
+        if let Some(values) = values {
+            lines.push(ChartLine {
+                name: name.to_string(),
+                color,
+                values,
+                opacity: 0.85,
+                dashed: false,
+            });
+        }
+    }
+
+    view! {
+        <MultiLineChart
+            title="Net Worth Projection".to_string()
+            period_months=months
+            lines=lines
+        />
+    }
+    .into_view()
 }
 
 #[component]
@@ -106,6 +148,9 @@ fn SpreadsheetTable(rows: Vec<SpreadsheetRow>) -> impl IntoView {
                         <th>"DR Franking"</th>
                         <th>"DR Recycled Debt"</th>
                         <th>"DR Cum. Deductible Interest"</th>
+                        <th>"Property Value"</th>
+                        <th>"Super Balance"</th>
+                        <th>"Net Worth"</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -134,6 +179,9 @@ fn SpreadsheetTable(rows: Vec<SpreadsheetRow>) -> impl IntoView {
                                     <td>{cell(row.dr_franking)}</td>
                                     <td>{cell(row.dr_recycled_debt)}</td>
                                     <td>{cell(row.dr_deductible_interest)}</td>
+                                    <td>{cell(row.property_value)}</td>
+                                    <td>{cell(row.super_balance)}</td>
+                                    <td>{cell(row.net_worth)}</td>
                                 </tr>
                             }
                         })

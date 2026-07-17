@@ -118,6 +118,10 @@ pub struct CalculatorInput {
     pub mls_income_for_surcharge_annual: Option<f64>,
     pub dividends_annual: f64,
     pub dividend_franking_percent: f64,
+    /// Annual salary growth applied per forecast year in the spreadsheet.
+    pub income_growth_percent: f64,
+    pub super_balance_current: f64,
+    pub super_growth_percent: f64,
 }
 
 impl CalculatorInput {
@@ -170,6 +174,9 @@ impl Default for CalculatorInput {
             mls_income_for_surcharge_annual: None,
             dividends_annual: 0.0,
             dividend_franking_percent: 100.0,
+            income_growth_percent: 0.0,
+            super_balance_current: 0.0,
+            super_growth_percent: 0.0,
         }
     }
 }

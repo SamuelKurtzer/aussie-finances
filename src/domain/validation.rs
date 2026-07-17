@@ -87,6 +87,27 @@ pub fn validate_input(input: &CalculatorInput) -> Vec<ValidationIssue> {
         });
     }
 
+    if input.income_growth_percent < -100.0 {
+        issues.push(ValidationIssue {
+            field: "income_growth_percent",
+            message: "Income growth must be -100% or greater.".to_string(),
+        });
+    }
+
+    if input.super_balance_current < 0.0 {
+        issues.push(ValidationIssue {
+            field: "super_balance_current",
+            message: "Super balance must be zero or greater.".to_string(),
+        });
+    }
+
+    if input.super_growth_percent < 0.0 {
+        issues.push(ValidationIssue {
+            field: "super_growth_percent",
+            message: "Super growth must be zero or greater.".to_string(),
+        });
+    }
+
     if let Some(family_income) = input.family_income_annual {
         if family_income < 0.0 {
             issues.push(ValidationIssue {

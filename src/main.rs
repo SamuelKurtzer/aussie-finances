@@ -3,6 +3,7 @@ mod backup;
 mod components;
 mod domain;
 mod formatting;
+mod loaders;
 mod pages;
 mod storage;
 

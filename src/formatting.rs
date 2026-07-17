@@ -93,4 +93,6 @@ pub mod chart_colors {
     pub const DR_INVESTMENT: &str = "#98c379";
     pub const DR_RECYCLED_DEBT: &str = "#e06c75";
     pub const DR_DEDUCTIBLE: &str = "#c678dd";
+    pub const PROPERTY: &str = "#d19a66";
+    pub const SUPER: &str = "#56b6c2";
 }
